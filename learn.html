@@ -1,0 +1,1370 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>苏格拉底伴学 — AI 启发式学习助手</title>
+    <style>
+        /* ===== Reset & Variables ===== */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { height: 100%; }
+        :root {
+            --primary: #E07D30;
+            --primary-dark: #CC6B22;
+            --primary-light: #FFF0E0;
+            --primary-glow: rgba(224, 125, 48, 0.15);
+            --bg: #FFF8F0;
+            --bg-warm: #FFF2E8;
+            --card: #FFFFFF;
+            --text: #2D3436;
+            --text-secondary: #636E72;
+            --text-light: #B2BEC3;
+            --border: #EDE4D8;
+            --shadow-sm: 0 2px 8px rgba(0,0,0,0.05);
+            --shadow-md: 0 4px 20px rgba(0,0,0,0.07);
+            --shadow-lg: 0 8px 40px rgba(0,0,0,0.08);
+            --radius-sm: 8px;
+            --radius-md: 14px;
+            --radius-lg: 20px;
+            --radius-xl: 28px;
+            --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            /* subject colors */
+            --math: #4A90D9;
+            --physics: #8E44AD;
+            --chemistry: #27AE60;
+            --english: #E67E22;
+            --chinese: #E74C3C;
+            --biology: #00B894;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+            color: var(--text);
+            background: var(--bg);
+            overflow: hidden;
+        }
+
+        /* ===== App Layout ===== */
+        .app { display: flex; height: 100vh; width: 100vw; position: relative; overflow: hidden; }
+
+        /* ===== Overlay (for drawer) ===== */
+        .drawer-overlay {
+            position: fixed; inset: 0; z-index: 90;
+            background: rgba(0,0,0,0.25);
+            opacity: 0; pointer-events: none;
+            transition: opacity var(--transition);
+        }
+        .drawer-overlay.open { opacity: 1; pointer-events: auto; }
+
+        /* ===== Left Drawer ===== */
+        .drawer {
+            position: fixed; left: 0; top: 0; bottom: 0; z-index: 100;
+            width: 360px; max-width: 85vw;
+            background: var(--card);
+            box-shadow: var(--shadow-lg);
+            transform: translateX(-100%);
+            transition: transform var(--transition);
+            display: flex; flex-direction: column;
+        }
+        .drawer.open { transform: translateX(0); }
+        .drawer-header {
+            padding: 20px 20px 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .drawer-header h2 {
+            font-size: 18px; font-weight: 700;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .drawer-close {
+            width: 32px; height: 32px; border: none; background: var(--bg);
+            border-radius: 50%; cursor: pointer;
+            font-size: 16px; color: var(--text-secondary);
+            display: flex; align-items: center; justify-content: center;
+            transition: background 0.2s;
+        }
+        .drawer-close:hover { background: var(--border); }
+
+        /* Drawer Tabs */
+        .drawer-tabs {
+            display: flex; border-bottom: 1px solid var(--border);
+            padding: 0 12px; gap: 4px;
+        }
+        .drawer-tab {
+            flex: 1; padding: 12px 8px; border: none; background: transparent;
+            font-size: 13px; font-weight: 600; color: var(--text-light);
+            cursor: pointer; position: relative; transition: color 0.2s;
+            white-space: nowrap;
+        }
+        .drawer-tab:hover { color: var(--text-secondary); }
+        .drawer-tab.active { color: var(--primary); }
+        .drawer-tab.active::after {
+            content: ''; position: absolute; bottom: 0; left: 20%; right: 20%;
+            height: 2.5px; border-radius: 2px;
+            background: var(--primary);
+        }
+        .drawer-tab .count {
+            background: var(--primary-light); color: var(--primary-dark);
+            font-size: 10px; padding: 1px 6px; border-radius: 10px;
+            margin-left: 4px; font-weight: 700;
+        }
+
+        .drawer-content { flex: 1; overflow-y: auto; padding: 16px; }
+        .drawer-content::-webkit-scrollbar { width: 4px; }
+        .drawer-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+        .drawer-pane { display: none; }
+        .drawer-pane.active { display: block; }
+
+        /* History list */
+        .history-item {
+            padding: 14px; border-radius: var(--radius-md);
+            cursor: pointer; transition: background 0.2s;
+            border: 1px solid transparent; margin-bottom: 8px;
+        }
+        .history-item:hover { background: var(--primary-light); border-color: var(--primary-glow); }
+        .history-item .sum { font-size: 14px; font-weight: 600; color: var(--text); }
+        .history-item .meta {
+            display: flex; justify-content: space-between; margin-top: 6px;
+            font-size: 12px; color: var(--text-light);
+        }
+        .history-empty {
+            text-align: center; padding: 40px 20px; color: var(--text-light);
+            font-size: 14px; line-height: 1.8;
+        }
+        .history-empty .icon { font-size: 40px; margin-bottom: 12px; }
+
+        /* Wrong answers */
+        .wrong-filter {
+            display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px;
+        }
+        .wrong-filter-btn {
+            padding: 4px 12px; border-radius: 20px; border: 1px solid var(--border);
+            background: var(--card); font-size: 12px; cursor: pointer;
+            transition: all 0.2s; color: var(--text-secondary);
+        }
+        .wrong-filter-btn:hover { border-color: var(--primary); }
+        .wrong-filter-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+        .wrong-item {
+            padding: 14px; border-radius: var(--radius-md);
+            background: var(--bg-warm); margin-bottom: 8px;
+            border-left: 3px solid var(--primary);
+        }
+        .wrong-item .q { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+        .wrong-item .a { font-size: 12px; color: var(--text-secondary); line-height: 1.6; }
+        .wrong-item .meta {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-top: 8px; font-size: 11px; color: var(--text-light);
+        }
+        .wrong-item .delete-btn {
+            border: none; background: transparent; color: var(--text-light);
+            cursor: pointer; font-size: 16px; padding: 4px;
+            border-radius: 4px; transition: all 0.2s;
+        }
+        .wrong-item .delete-btn:hover { background: #fee2e2; color: #ef4444; }
+        .wrong-subject-tag {
+            font-size: 10px; padding: 2px 8px; border-radius: 6px; font-weight: 600;
+        }
+
+        /* Progress tab */
+        .progress-pie-wrap {
+            display: flex; align-items: center; gap: 24px; padding: 16px 0;
+        }
+        .progress-pie {
+            width: 88px; height: 88px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            position: relative; flex-shrink: 0;
+        }
+        .progress-pie-inner {
+            width: 64px; height: 64px; border-radius: 50%;
+            background: var(--card); display: flex; align-items: center; justify-content: center;
+            font-size: 20px; font-weight: 800; color: var(--primary);
+        }
+        .progress-legend { font-size: 12px; line-height: 2; }
+        .progress-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+        .topic-progress-item {
+            display: flex; align-items: center; gap: 10px;
+            padding: 8px 0; border-bottom: 1px solid var(--border);
+            font-size: 13px;
+        }
+        .topic-progress-item:last-child { border-bottom: none; }
+        .topic-bar { flex: 1; height: 6px; background: var(--bg); border-radius: 3px; overflow: hidden; }
+        .topic-bar .fill { height: 100%; border-radius: 3px; transition: width 0.6s; }
+        .topic-pct { font-size: 12px; font-weight: 700; color: var(--text-secondary); min-width: 30px; text-align: right; }
+
+        /* ===== Main Area ===== */
+        .main {
+            flex: 1; display: flex; flex-direction: column;
+            min-width: 0; position: relative;
+            transition: margin-left var(--transition);
+        }
+
+        /* ===== Top Bar ===== */
+        .topbar {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 16px 24px; background: rgba(44, 33, 28, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid #3D2F28;
+            flex-shrink: 0;
+        }
+        .topbar-left { display: flex; align-items: center; }
+        .menu-btn {
+            width: 36px; height: 36px; border: none; background: #3A2C26;
+            border-radius: 10px; cursor: pointer; font-size: 18px;
+            color: #C4B8AD;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+        .menu-btn:hover { background: #FFF0E0; color: #E07D30; }
+        .menu-spacer { width: 62px; flex-shrink: 0; }
+        .menu-btn:hover { background: #FFF0E0; color: #E07D30; }
+        .topbar-brand { display: flex; align-items: center; gap: 10px; margin-top: -6px; margin-left: 1px; }
+        .brand-icon {
+            width: 30px; height: 30px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            border-radius: 8px; display: flex; align-items: center; justify-content: center;
+            color: #fff; font-size: 15px; font-weight: 700;
+        }
+        .brand-text { font-size: 17px; font-weight: 800; color: #F5EDE6; }
+        .brand-sub { font-size: 11px; color: #8F8073; display: none; }
+
+        .topbar-right { display: flex; align-items: center; gap: 6px; }
+        .topbar-btn {
+            padding: 6px 12px; border: 1px solid #3D2F28; background: transparent;
+            border-radius: var(--radius-sm); cursor: pointer;
+            font-size: 13px; color: #C4B8AD;
+            transition: all 0.2s; display: flex; align-items: center; gap: 4px;
+        }
+        .topbar-btn:hover { border-color: #E07D30; color: #E07D30; background: rgba(224,125,48,0.1); }
+        .topbar-btn .badge {
+            background: #ef4444; color: #fff; font-size: 9px; padding: 1px 5px;
+            border-radius: 8px; font-weight: 700;
+        }
+
+        /* ===== Subject Selector ===== */
+        /* ===== Selector Bar ===== */
+        .selector-bar {
+            display: flex; align-items: center; gap: 12px;
+            padding: 10px 20px; background: var(--card);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0; flex-wrap: wrap;
+        }
+        .selector-group {
+            display: flex; align-items: center; gap: 6px;
+        }
+        .selector-group label {
+            font-size: 12px; font-weight: 600; color: var(--text-light);
+            white-space: nowrap;
+        }
+        .selector-bar select {
+            padding: 5px 10px; border: 1px solid var(--border);
+            border-radius: 8px; background: var(--bg-warm);
+            font-size: 13px; font-family: inherit; color: var(--text);
+            cursor: pointer; outline: none; min-width: 90px;
+            transition: border-color 0.2s;
+        }
+        .selector-bar select:focus {
+            border-color: var(--primary);
+        }
+        .selector-bar select option {
+            color: #2D3436;
+        }
+        .selector-divider {
+            width: 1px; height: 24px; background: var(--border);
+        }
+        @media (max-width: 640px) {
+            .selector-bar { gap: 8px; padding: 8px 14px; }
+            .selector-group label { display: none; }
+            .selector-bar select { font-size: 12px; min-width: 70px; padding: 4px 8px; }
+        }
+
+        /* ===== Messages ===== */
+        .messages {
+            flex: 1; overflow-y: auto; padding: 20px;
+            display: flex; flex-direction: column; gap: 16px;
+        }
+        .messages::-webkit-scrollbar { width: 6px; }
+        .messages::-webkit-scrollbar-track { background: transparent; }
+        .messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+        /* Welcome Card */
+        .welcome-card {
+            margin: auto; max-width: 520px; width: 100%;
+            text-align: center; animation: fadeUp 0.6s ease;
+        }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .welcome-illustration {
+            width: 120px; height: 120px; margin: 0 auto 20px;
+            background: linear-gradient(135deg, var(--primary-light), #FDE8D0);
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            font-size: 56px; position: relative;
+        }
+        .welcome-illustration::after {
+            content: ''; position: absolute; inset: -4px;
+            border-radius: 50%; border: 2px dashed var(--primary);
+            opacity: 0.3; animation: spin 20s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .welcome-card h1 { font-size: 24px; font-weight: 800; margin-bottom: 6px; color: var(--text); }
+        .welcome-card h1 .highlight {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .welcome-card .sub {
+            color: var(--text-secondary); font-size: 14px; line-height: 1.7;
+            margin-bottom: 24px; max-width: 380px; margin-left: auto; margin-right: auto;
+        }
+        .welcome-examples {
+            display: flex; flex-direction: column; gap: 8px;
+            align-items: center;
+        }
+        .example-btn {
+            padding: 10px 24px; border-radius: 50px; border: 1.5px solid var(--border);
+            background: var(--card); cursor: pointer; font-size: 13px;
+            color: var(--text-secondary); max-width: 420px; width: 100%;
+            transition: all 0.25s; box-shadow: var(--shadow-sm);
+            display: flex; align-items: center; gap: 8px; justify-content: center;
+        }
+        .example-btn:hover {
+            transform: translateY(-2px); box-shadow: var(--shadow-md);
+            border-color: var(--primary); color: var(--primary);
+        }
+        .example-btn .emoji { font-size: 18px; }
+
+        /* Message bubbles */
+        .message {
+            display: flex; gap: 10px; max-width: 720px;
+            animation: msgIn 0.35s ease; width: 100%; margin: 0 auto;
+        }
+        @keyframes msgIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .message.bot { align-self: flex-start; }
+        .message.user { align-self: flex-end; flex-direction: row-reverse; }
+
+        .msg-avatar {
+            width: 32px; height: 32px; min-width: 32px;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            font-size: 14px; margin-top: 4px; flex-shrink: 0;
+        }
+        .message.bot .msg-avatar {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: #fff;
+        }
+        .message.user .msg-avatar { background: var(--bg); color: var(--text-secondary); }
+
+        .msg-content { display: flex; flex-direction: column; gap: 4px; max-width: 88%; }
+        .msg-bubble {
+            padding: 14px 18px; border-radius: var(--radius-md);
+            font-size: 15px; line-height: 1.75;
+            word-break: break-word;
+        }
+        .message.bot .msg-bubble {
+            background: var(--card); border: 1px solid var(--border);
+            color: var(--text); border-bottom-left-radius: 4px;
+            box-shadow: var(--shadow-sm);
+        }
+        .message.user .msg-bubble {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: #fff; border-bottom-right-radius: 4px;
+        }
+        .msg-time { font-size: 11px; color: var(--text-light); padding: 0 4px; }
+        .message.user .msg-time { text-align: right; }
+
+        /* Markdown styling */
+        .msg-bubble code {
+            background: #F0F2F5; padding: 2px 6px; border-radius: 4px;
+            font-size: 13px; font-family: "SF Mono", "Fira Code", monospace;
+        }
+        .message.user .msg-bubble code { background: rgba(255,255,255,0.15); color: #fff; }
+        .msg-bubble pre {
+            background: #F0F2F5; padding: 14px; border-radius: 10px;
+            overflow-x: auto; margin: 8px 0;
+        }
+        .msg-bubble pre code { background: none; padding: 0; }
+        .msg-bubble .math {
+            font-family: "Times New Roman", "Latin Modern Math", serif;
+            font-style: italic; padding: 0 2px;
+        }
+        .msg-bubble .math-block {
+            display: block; text-align: center;
+            font-family: "Times New Roman", "Latin Modern Math", serif;
+            font-style: italic; padding: 12px; margin: 8px 0;
+            background: #F8FAF9; border-radius: 10px;
+            font-size: 1.1em;
+        }
+        .msg-bubble ul, .msg-bubble ol { margin: 8px 0; padding-left: 20px; }
+        .msg-bubble li { margin: 4px 0; }
+        .msg-bubble strong { font-weight: 700; }
+        .msg-bubble em { font-style: italic; }
+        .msg-bubble a { color: var(--primary); text-decoration: underline; }
+        .message.user .msg-bubble a { color: rgba(255,255,255,0.9); }
+
+        /* Floating action buttons on AI messages */
+        .msg-actions {
+            display: flex; gap: 8px; padding: 4px 2px; opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .message.bot:hover .msg-actions,
+        .msg-actions.always-visible { opacity: 1; }
+        .msg-action-btn {
+            padding: 4px 12px; border: 1px solid var(--border);
+            background: var(--card); border-radius: 20px;
+            cursor: pointer; font-size: 12px; color: var(--text-secondary);
+            transition: all 0.2s; display: flex; align-items: center; gap: 4px;
+            box-shadow: var(--shadow-sm);
+        }
+        .msg-action-btn:hover {
+            background: var(--primary-light); border-color: var(--primary);
+            color: var(--primary-dark); transform: translateY(-1px);
+        }
+        .msg-action-btn.saved {
+            background: var(--primary-light); border-color: var(--primary);
+            color: var(--primary-dark);
+        }
+
+        /* ===== Typing Indicator ===== */
+        .typing-area {
+            padding: 0 20px 8px; display: none; justify-content: flex-start;
+        }
+        .typing-area.active { display: flex; }
+        .typing-dots {
+            display: flex; gap: 4px; padding: 14px 18px;
+            background: var(--card); border-radius: var(--radius-md);
+            border: 1px solid var(--border); border-bottom-left-radius: 4px;
+            box-shadow: var(--shadow-sm);
+        }
+        .typing-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--text-light);
+            animation: typingB 1.4s ease-in-out infinite;
+        }
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes typingB {
+            0%, 60%, 100% { transform: translateY(0); background: var(--text-light); }
+            30% { transform: translateY(-8px); background: var(--primary); }
+        }
+
+        /* ===== Input Area ===== */
+        .input-area {
+            padding: 12px 20px 16px; background: transparent;
+            flex-shrink: 0;
+        }
+        .input-inner {
+            max-width: 720px; margin: 0 auto;
+            background: var(--card); border-radius: var(--radius-xl);
+            box-shadow: 0 4px 24px rgba(0,0,0,0.06), 0 1px 4px rgba(0,0,0,0.04);
+            display: flex; align-items: flex-end; gap: 8px;
+            padding: 6px 6px 6px 18px;
+            border: 1.5px solid transparent;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .input-inner:focus-within {
+            border-color: var(--primary);
+            box-shadow: 0 4px 24px rgba(68, 199, 181, 0.12);
+        }
+        .input-inner textarea {
+            flex: 1; border: none; outline: none;
+            font-size: 15px; font-family: inherit;
+            background: transparent; resize: none;
+            max-height: 120px; line-height: 1.6;
+            color: var(--text); padding: 8px 0;
+        }
+        .input-inner textarea::placeholder { color: var(--text-light); }
+        .send-btn {
+            width: 42px; height: 42px; border-radius: 50%;
+            border: none; background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: #fff; font-size: 18px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: transform 0.15s, box-shadow 0.15s;
+            flex-shrink: 0;
+        }
+        .send-btn:hover { transform: scale(1.08); box-shadow: 0 4px 14px rgba(224,125,48,0.35); }
+        .send-btn:active { transform: scale(0.92); }
+        .send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+
+        /* ===== Toast ===== */
+        .toast-container {
+            position: fixed; top: 72px; left: 50%; transform: translateX(-50%);
+            z-index: 300; pointer-events: none;
+        }
+        .toast {
+            background: var(--card); padding: 10px 24px;
+            border-radius: 50px; box-shadow: var(--shadow-md);
+            font-size: 14px; font-weight: 600; color: var(--text);
+            border: 1px solid var(--border);
+            animation: toastIn 0.35s ease, toastOut 0.35s ease 1.8s forwards;
+            display: flex; align-items: center; gap: 6px;
+        }
+        @keyframes toastIn { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes toastOut { from { opacity: 1; } to { opacity: 0; transform: translateY(-12px); } }
+
+        /* ===== Responsive ===== */
+        @media (max-width: 768px) {
+            .drawer { width: 100vw; max-width: 100vw; }
+            .topbar { padding: 10px 14px; }
+            .selector-bar { gap: 8px; padding: 8px 14px; }
+            .messages { padding: 14px; }
+            .input-area { padding: 8px 12px 12px; }
+            .brand-sub { display: none; }
+            .topbar-btn span:not(.badge) { display: none; }
+            .welcome-card h1 { font-size: 20px; }
+            .welcome-illustration { width: 90px; height: 90px; font-size: 42px; }
+            .msg-bubble { font-size: 14px; }
+            .msg-actions { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+<div class="app">
+
+    <!-- ===== Drawer Overlay ===== -->
+    <div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
+
+    <!-- ===== Left Drawer ===== -->
+    <aside class="drawer" id="drawer">
+        <div class="drawer-header">
+            <h2>📚 学习中心</h2>
+            <button class="drawer-close" onclick="closeDrawer()">✕</button>
+        </div>
+        <div class="drawer-tabs">
+            <button class="drawer-tab active" data-pane="history" onclick="switchDrawerTab('history')">
+                💬 历史对话 <span class="count" id="historyCount">0</span>
+            </button>
+            <button class="drawer-tab" data-pane="wrongbook" onclick="switchDrawerTab('wrongbook')">
+                📕 错题本 <span class="count" id="wrongCount">0</span>
+            </button>
+            <button class="drawer-tab" data-pane="progress" onclick="switchDrawerTab('progress')">
+                📈 进度
+            </button>
+        </div>
+        <div class="drawer-content">
+            <!-- History -->
+            <div class="drawer-pane active" id="pane-history">
+                <div id="historyList"></div>
+            </div>
+            <!-- Wrong Book -->
+            <div class="drawer-pane" id="pane-wrongbook">
+                <div class="wrong-filter" id="wrongFilter"></div>
+                <div id="wrongList"></div>
+            </div>
+            <!-- Progress -->
+            <div class="drawer-pane" id="pane-progress">
+                <div id="progressContent"></div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- ===== Main Area ===== -->
+    <main class="main" id="mainArea">
+
+        <!-- Top Bar -->
+        <div class="topbar">
+            <div class="topbar-left">
+                <button class="menu-btn" onclick="toggleDrawer()" title="学习中心">☰</button>
+                <div class="menu-spacer"></div>
+                <div class="topbar-brand">
+                    <div class="brand-icon">Σ</div>
+                    <div>
+                        <div class="brand-text">苏格拉底伴学</div>
+                        <div class="brand-sub">不教答案 · 只教思考</div>
+                    </div>
+                </div>
+            </div>
+            <div class="topbar-right">
+                <button class="topbar-btn" onclick="clearChat()" title="清空对话">🗑️ <span>清空</span></button>
+            </div>
+        </div>
+
+        <!-- Selector Bar -->
+        <div class="selector-bar" id="selectorBar">
+            <div class="selector-group">
+                <label> 学科</label>
+                <select id="selSubject">
+                    <option value="math"> 数学</option>
+                    <option value="physics"> 物理</option>
+                    <option value="chemistry"> 化学</option>
+                    <option value="english"> 英语</option>
+                    <option value="chinese"> 语文</option>
+                    <option value="biology"> 生物</option>
+                </select>
+            </div>
+            <div class="selector-divider"></div>
+            <div class="selector-group">
+                <label> 年级</label>
+                <select id="selGrade">
+                    <option value="7">七年级</option>
+                    <option value="8">八年级</option>
+                    <option value="9">九年级</option>
+                    <option value="10">高一</option>
+                    <option value="11">高二</option>
+                    <option value="12">高三</option>
+                </select>
+            </div>
+            <div class="selector-divider"></div>
+            <div class="selector-group">
+                <label> 教材</label>
+                <select id="selTextbook">
+                    <option value="national">全国统一</option>
+                    <option value="pep">人教版</option>
+                    <option value="bsd">北师大版</option>
+                    <option value="sjb">苏教版</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Messages -->
+        <div class="messages" id="messages">
+            <!-- Welcome Card -->
+            <div class="welcome-card" id="welcomeCard">
+                <div class="welcome-illustration">🧠</div>
+                <h1>Hi，今天想挑战哪个知识点？<span class="highlight">🤔</span></h1>
+                <p class="sub">我是你的 AI 学习搭子，不会直接告诉你答案——我会用一连串追问，帮你自己发现藏在深处的理解。选一个问题开始吧👇</p>
+                <div class="welcome-examples" id="welcomeExamples">
+                    <!-- populated by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Typing Indicator -->
+        <div class="typing-area" id="typingArea">
+            <div class="typing-dots">
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+            </div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="input-area">
+            <div class="input-inner">
+                <textarea id="chatInput" rows="1" placeholder="输入你的问题、题目或想学的概念…" oninput="autoResize(this)" onkeydown="handleKeydown(event)"></textarea>
+                <button class="send-btn" id="sendBtn" onclick="sendMessage()">➤</button>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- ===== Toast Container ===== -->
+    <div class="toast-container" id="toastContainer"></div>
+
+</div>
+
+<script>
+    // ======================================================================
+    // 1. STATE
+    // ======================================================================
+    const STATE = {
+        currentSubject: 'math',
+        isProcessing: false,
+        drawerOpen: false,
+        messages: [],          // UI message data
+        conversationHistory: [], // for API (role/content pairs)
+        historyList: [],       // saved conversations [{id, subject, summary, count, ts, messages}]
+        wrongBook: [],         // [{id, subject, question, answer, ts}]
+    };
+    // Load from localStorage
+    try {
+        const h = localStorage.getItem('socrates_history');
+        if (h) { const parsed = JSON.parse(h); STATE.conversationHistory = parsed; }
+        const hl = localStorage.getItem('socrates_history_list');
+        if (hl) STATE.historyList = JSON.parse(hl);
+        const wb = localStorage.getItem('socrates_wrongbook');
+        if (wb) STATE.wrongBook = JSON.parse(wb);
+        const sj = localStorage.getItem('socrates_subject');
+        if (sj) STATE.currentSubject = sj;
+    } catch(e) {}
+
+    // ======================================================================
+    // 2. SUBJECT DATA
+    // ======================================================================
+    const SUBJECTS = {
+        math:    { name:'数学', icon:'📐', color:'var(--math)',   examples:[
+            '我想理解一元二次方程的求根公式为什么成立',
+            '函数到底是什么？用最简单的话解释',
+            '勾股定理为什么成立？能从最基础推出来吗',
+            '帮我理清一次函数和二次函数的区别'
+        ]},
+        physics: { name:'物理', icon:'⚛️', color:'var(--physics)', examples:[
+            '帮我搞懂牛顿第一定律到底在说什么',
+            '加速度和速度有什么区别？从定义出发',
+            '为什么物体会下落？万有引力的本质是什么',
+            '我想检验一下力学知识点掌握得怎么样'
+        ]},
+        chemistry:{ name:'化学', icon:'🧪', color:'var(--chemistry)', examples:[
+            '帮我搞懂光合作用的本质是什么',
+            '氧化还原反应怎么判断？从电子角度解释',
+            '元素周期表是怎么排列的？规律是什么',
+            '化学方程式配平的本质是什么'
+        ]},
+        english:{ name:'英语', icon:'🇬🇧', color:'var(--english)', examples:[
+            '现在完成时和过去时到底有什么不同',
+            '定语从句到底在修饰什么？怎么判断',
+            '被动语态什么时候用？和主动语态什么区别',
+            '虚拟语气到底表达的是什么意思'
+        ]},
+        chinese:{ name:'语文', icon:'📖', color:'var(--chinese)', examples:[
+            '文言文实词怎么推断意思？有规律吗',
+            '阅读理解中"主旨题"到底在问什么',
+            '作文怎么构建逻辑框架？从审题开始',
+            '古诗词鉴赏到底要鉴赏什么'
+        ]},
+        biology:{ name:'生物', icon:'🌿', color:'var(--biology)', examples:[
+            '细胞膜的功能是什么？为什么叫"选择透过性"',
+            'DNA和RNA到底有什么不同',
+            '光合作用和呼吸作用的关系是什么',
+            '生态系统中的能量流动遵循什么规律'
+        ]},
+    };
+
+    // Knowledge tree data for progress tracking
+    const KNOWLEDGE_TREE = {
+        math: { name:'数学', icon:'📐', children:[
+            { name:'代数', icon:'✏️', status:'learning', children:[
+                { name:'方程与不等式', icon:'📝', status:'learning' },
+                { name:'函数', icon:'📊', status:'not-started' },
+            ]},
+            { name:'几何', icon:'🔷', status:'not-started' },
+            { name:'概率统计', icon:'📊', status:'not-started' },
+        ]},
+        physics: { name:'物理', icon:'⚛️', children:[
+            { name:'力学', icon:'⚡', status:'learning' },
+            { name:'电磁学', icon:'🧲', status:'not-started' },
+            { name:'光学', icon:'🔦', status:'not-started' },
+        ]},
+        chemistry: { name:'化学', icon:'🧪', children:[
+            { name:'物质结构', icon:'⚗️', status:'learning' },
+            { name:'化学反应', icon:'🔥', status:'not-started' },
+        ]},
+        english: { name:'英语', icon:'🇬🇧', children:[
+            { name:'语法', icon:'📝', status:'not-started' },
+            { name:'词汇', icon:'📖', status:'not-started' },
+        ]},
+        chinese: { name:'语文', icon:'📖', children:[
+            { name:'文言文', icon:'📜', status:'not-started' },
+            { name:'阅读理解', icon:'📚', status:'not-started' },
+            { name:'作文', icon:'✍️', status:'not-started' },
+        ]},
+        biology: { name:'生物', icon:'🌿', children:[
+            { name:'细胞生物学', icon:'🔬', status:'not-started' },
+            { name:'遗传与进化', icon:'🧬', status:'not-started' },
+            { name:'生态学', icon:'🌍', status:'not-started' },
+        ]},
+    };
+
+    // ======================================================================
+    // 3. SYSTEM PROMPT
+    // ======================================================================
+    const BASE_SYSTEM_PROMPT = `你是一名面向初中、高中学生的陪伴式助教（Tutor），叫苏格拉底伴学。你的目标不是帮学生快速得到答案，而是帮助学生真正理解知识、发现知识漏洞、建立知识体系，并最终能够独立解决问题。你不能回答问题，只能提问。
+
+你的核心教学方法包括：苏格拉底式提问、第一性原理思考、费曼学习法、形成性评估、启发式引导。
+
+# 核心原则
+## 原则1：绝不直接给答案！！！这是最重要的第一原则
+针对学生的问题，绝对不能直接给出答案、结论、解题步骤，绝对不能整理核心考点。也不能就主题给出任何拆解，全部由学生自己发现！！！！
+如果学生一开始就要求总结，请先告诉他会在学习结束的时候总结。随后立刻就学生问题的核心概念提问，引导学生自主找教科书里的定义和答案。
+你的工作是通过连续提问，引导学生自己发现：已知条件是什么？本质概念是什么？为什么要这样做？有没有更基础的原理？不同知识点之间有什么联系？
+
+## 原则2：先查缺补漏，再解题
+当学生给出一道题目时：第一步不是解题。第一步是识别这道题需要哪些知识。然后围绕这些知识点提问。
+
+## 原则3：费曼输出优先
+学生说"懂了"，不代表真的懂。必须要求学生解释。常用追问：用你自己的话解释一下。假设你要教一个同班同学，你会怎么讲？不用公式解释一次。举一个生活中的例子。
+
+## 原则4：回到定义
+任何知识点都优先回到定义。不要停留在公式层面。要不断追问：这个定义是什么意思？为什么这样定义？如果没有公式还能解释吗？
+
+## 原则5：发现知识网络
+帮助学生建立联系。经常提问：这个知识点和之前学过的什么有关？你能想到类似题吗？它和另一个章节有什么联系？
+
+# 学生不会时的处理
+如果学生答不出来：禁止直接讲答案。第一步：肯定其努力（"没关系，我们一起找找卡在哪里"）。第二步：定位缺口（"你觉得自己是不知道概念，还是不知道怎么应用？"）。第三步：引导查阅材料（"请打开你正在使用的教材或教辅"）。
+
+# 学生发题目的标准流程
+收到题目后，第一步：内部分析（涉及哪些知识点、哪些前置知识、哪些易错点，不要输出分析结果）。第二步：先提3~5个诊断问题，从最基础概念开始。第三步：根据回答追问。第四步：费曼检验。第五步：学生自己完成解题。
+
+# 知识树诊断模式
+对于任何主题、章节、题目或知识点，都要默认先构建知识树，再开始提问。目标不是解决当前问题，而是定位学生在知识树上的薄弱节点。任何题目都只是知识树上多个节点的综合应用。学生不会做题，通常不是因为不会这道题，而是因为知识树上的某个节点存在缺失、理解错误、连接断裂、无法迁移应用。
+
+# 对话风格
+你是温和、耐心、鼓励式的陪伴型老师。特点：不批评、不讽刺、不急于给答案、保持好奇、经常鼓励学生思考、夸奖学生的每一个微小的进步。
+常用表达："你是怎么想到这一点的？" "如果再往前追一步呢？" "这个结论从哪里来的？" "如果不用公式，你会怎么解释？" "很好，我们继续深挖一下。" "试着像老师一样给我讲一遍。"
+
+# 最终目标
+你的目标不是让学生得到答案。而是让学生：1. 找到知识漏洞；2. 理解概念本质；3. 建立知识网络；4. 能向别人解释；5. 最终独立解决问题。
+
+重要：每次回答要简短一些（不超过200字），避免一次性给出太多信息。一次只问1-2个问题，让学生有空间思考和回答。`;
+
+    function getSystemPrompt(subject) {
+        const subj = SUBJECTS[subject] || SUBJECTS.math;
+        return `当前学科：${subj.name}。请针对${subj.name}学科的问题进行苏格拉底式教学引导。\n\n${BASE_SYSTEM_PROMPT}`;
+    }
+
+    // ======================================================================
+    // 4. WELCOME SCREEN
+    // ======================================================================
+    function renderWelcomeExamples() {
+        const container = document.getElementById('welcomeExamples');
+        const subj = SUBJECTS[STATE.currentSubject];
+        container.innerHTML = subj.examples.map((ex, i) => {
+            const colors = ['#4A90D9','#8E44AD','#27AE60','#E67E22'];
+            const c = colors[i % colors.length];
+            return `<button class="example-btn" onclick="sendExample('${ex.replace(/'/g, "\\'")}')" style="border-color:${c}20;color:${c};">
+                <span class="emoji">${['🔍','💡','🧩','🎯'][i]}</span>${ex}
+            </button>`;
+        }).join('');
+    }
+
+    function sendExample(text) {
+        document.getElementById('chatInput').value = text;
+        autoResize(document.getElementById('chatInput'));
+        sendMessage();
+    }
+
+    // ======================================================================
+    // 5. SUBJECT SELECTOR
+    // ======================================================================
+    function initSubjectSelector() {
+        const sel = document.getElementById('selSubject');
+        sel.value = STATE.currentSubject;
+        sel.addEventListener('change', () => {
+            const subject = sel.value;
+            if (subject === STATE.currentSubject) return;
+            STATE.currentSubject = subject;
+            try { localStorage.setItem('socrates_subject', subject); } catch(e) {}
+            renderWelcomeExamples();
+            showToast(`已切换到 ${SUBJECTS[subject].name} ${SUBJECTS[subject].icon}`);
+            updateDrawerCounts();
+        });
+    }
+
+    // ======================================================================
+    // 6. TOAST
+    // ======================================================================
+    function showToast(text) {
+        const container = document.getElementById('toastContainer');
+        const el = document.createElement('div');
+        el.className = 'toast';
+        el.textContent = text;
+        container.appendChild(el);
+        setTimeout(() => el.remove(), 2200);
+    }
+
+    // ======================================================================
+    // 7. MARKDOWN RENDERER
+    // ======================================================================
+    function renderMarkdown(text) {
+        // Escape HTML first
+        let html = text
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+        // Math block $$...$$
+        html = html.replace(/\$\$([\s\S]*?)\$\$/g, '<div class="math-block">$1</div>');
+        // Math inline $...$ (careful not to match $$)
+        html = html.replace(/\$(.+?)\$/g, '<span class="math">$1</span>');
+
+        // Code blocks ```...```
+        html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
+
+        // Inline code
+        html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+        // Bold & italic
+        html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+
+        // Links [text](url)
+        html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+
+        // Ordered lists (lines starting with 1. 2. etc.)
+        html = html.replace(/(?:^|\n)(\d+)\.\s+(.+)/g, (m, num, content) => {
+            return `\n<ol start="${num}"><li>${content}</li></ol>`;
+        });
+        // Clean up nested ol
+        html = html.replace(/<\/ol>\n<ol start="(\d+)">/g, (m, num) => {
+            return num === '1' ? '\n' : m;
+        });
+
+        // Unordered lists - lines starting with - or *
+        html = html.replace(/(?:^|\n)[-*]\s+(.+)/g, '\n<li style="list-style:disc;margin-left:20px;">$1</li>');
+
+        // Line breaks (double newline = paragraph)
+        html = html.replace(/\n\n/g, '</p><p>');
+        // Single newline = <br>
+        html = html.replace(/\n/g, '<br>');
+
+        return `<p>${html}</p>`;
+    }
+
+    // ======================================================================
+    // 8. API INTEGRATION — 通过 Cloudflare Worker 代理
+    // ======================================================================
+    // ⚠️ 请将下面的 URL 替换为你的 Cloudflare Worker 地址
+    const WORKER_URL = 'https://your-worker.workers.dev/api/chat';
+
+    async function callClaudeAPI(userMessage) {
+        const messages = [{ role: 'system', content: getSystemPrompt(STATE.currentSubject) }];
+        for (const msg of STATE.conversationHistory) {
+            messages.push({ role: msg.role, content: msg.content });
+        }
+        messages.push({ role: 'user', content: userMessage });
+
+        const response = await fetch(WORKER_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: 'deepseek-chat',
+                messages: messages,
+                max_tokens: 1024,
+                stream: false,
+            }),
+        });
+
+        if (!response.ok) {
+            let errMsg = `API 请求失败 (${response.status})`;
+            try { const e = await response.json(); if (e.error?.message) errMsg += ': ' + e.error.message; } catch(e2) {}
+            throw new Error(errMsg);
+        }
+        const data = await response.json();
+        return data.choices?.[0]?.message?.content || '（AI 未返回有效响应）';
+    }
+
+    // ======================================================================
+    // 9. CHAT LOGIC
+    // ======================================================================
+    async function sendMessage() {
+        const input = document.getElementById('chatInput');
+        const text = input.value.trim();
+        if (!text || STATE.isProcessing) return;
+
+        document.getElementById('welcomeCard').style.display = 'none';
+        addMessage(text, 'user');
+        input.value = '';
+        autoResize(input);
+
+        STATE.isProcessing = true;
+        document.getElementById('typingArea').classList.add('active');
+        document.getElementById('sendBtn').disabled = true;
+
+        try {
+            const reply = await callClaudeAPI(text);
+            STATE.conversationHistory.push({ role: 'user', content: text });
+            STATE.conversationHistory.push({ role: 'assistant', content: reply });
+            if (STATE.conversationHistory.length > 80) {
+                STATE.conversationHistory = STATE.conversationHistory.slice(-80);
+            }
+            try { localStorage.setItem('socrates_history', JSON.stringify(STATE.conversationHistory)); } catch(e) {}
+            addMessage(reply, 'bot');
+        } catch (err) {
+            addMessage('⚠️ ' + err.message, 'bot');
+        } finally {
+            STATE.isProcessing = false;
+            document.getElementById('typingArea').classList.remove('active');
+            document.getElementById('sendBtn').disabled = false;
+            document.getElementById('chatInput').focus();
+        }
+    }
+
+    function addMessage(text, role) {
+        const container = document.getElementById('messages');
+        const div = document.createElement('div');
+        div.className = `message ${role}`;
+
+        const avatar = document.createElement('div');
+        avatar.className = 'msg-avatar';
+        avatar.textContent = role === 'bot' ? 'Σ' : '👤';
+
+        const content = document.createElement('div');
+        content.className = 'msg-content';
+
+        const bubble = document.createElement('div');
+        bubble.className = 'msg-bubble';
+        if (role === 'bot') {
+            bubble.innerHTML = renderMarkdown(text);
+        } else {
+            bubble.textContent = text;
+        }
+        content.appendChild(bubble);
+
+        const time = document.createElement('div');
+        time.className = 'msg-time';
+        time.textContent = new Date().toLocaleTimeString('zh-CN', { hour:'2-digit', minute:'2-digit' });
+        content.appendChild(time);
+
+        // Action buttons for AI messages
+        if (role === 'bot') {
+            const actions = document.createElement('div');
+            actions.className = 'msg-actions';
+            // Get the user message that preceded this
+            const msgs = container.querySelectorAll('.message.user .msg-bubble');
+            const lastUserMsg = msgs.length > 0 ? msgs[msgs.length - 1].textContent : '';
+            const idx = STATE.conversationHistory.length;
+            actions.innerHTML = `
+                <button class="msg-action-btn" onclick="saveToWrongBook(this, ${idx})" title="收藏到错题本">📥 收藏到错题本</button>
+                <button class="msg-action-btn" onclick="requestPractice(this, ${idx})" title="出几道练习题">📝 出几道练习题</button>
+            `;
+            content.appendChild(actions);
+            // Make actions visible after a brief delay
+            setTimeout(() => actions.classList.add('always-visible'), 500);
+            setTimeout(() => actions.classList.remove('always-visible'), 5000);
+        }
+
+        if (role === 'bot') { div.appendChild(avatar); div.appendChild(content); }
+        else { div.appendChild(content); div.appendChild(avatar); }
+
+        container.appendChild(div);
+        container.scrollTop = container.scrollHeight;
+    }
+
+    function clearChat() {
+        if (STATE.conversationHistory.length === 0) return;
+        if (!confirm('确定要清空当前对话吗？\n（对话会自动保存到历史记录）')) return;
+        // Save to history before clearing
+        saveCurrentToHistory();
+        STATE.conversationHistory = [];
+        try { localStorage.setItem('socrates_history', JSON.stringify([])); } catch(e) {}
+        document.getElementById('messages').querySelectorAll('.message').forEach(el => el.remove());
+        document.getElementById('welcomeCard').style.display = '';
+        updateDrawerCounts();
+        renderHistoryList();
+    }
+
+    function handleKeydown(e) {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+    }
+
+    function autoResize(el) {
+        el.style.height = 'auto';
+        el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+    }
+
+    // ======================================================================
+    // 10. DRAWER - History & Wrong Book
+    // ======================================================================
+    function toggleDrawer() {
+        STATE.drawerOpen ? closeDrawer() : openDrawer();
+    }
+    function openDrawer() {
+        STATE.drawerOpen = true;
+        document.getElementById('drawer').classList.add('open');
+        document.getElementById('drawerOverlay').classList.add('open');
+        renderHistoryList();
+        renderWrongList();
+        renderProgress();
+        updateDrawerCounts();
+    }
+    function closeDrawer() {
+        STATE.drawerOpen = false;
+        document.getElementById('drawer').classList.remove('open');
+        document.getElementById('drawerOverlay').classList.remove('open');
+    }
+
+    function switchDrawerTab(tab) {
+        document.querySelectorAll('.drawer-tab').forEach(t => t.classList.toggle('active', t.dataset.pane === tab));
+        document.querySelectorAll('.drawer-pane').forEach(p => p.classList.toggle('active', p.id === `pane-${tab}`));
+        if (tab === 'history') renderHistoryList();
+        if (tab === 'wrongbook') renderWrongList();
+        if (tab === 'progress') renderProgress();
+    }
+
+    // ---- History ----
+    function saveCurrentToHistory() {
+        if (STATE.conversationHistory.length < 2) return;
+        const firstUserMsg = STATE.conversationHistory.find(m => m.role === 'user');
+        if (!firstUserMsg) return;
+        const summary = firstUserMsg.content.slice(0, 40) + (firstUserMsg.content.length > 40 ? '…' : '');
+        const entry = {
+            id: Date.now(),
+            subject: STATE.currentSubject,
+            summary,
+            count: Math.ceil(STATE.conversationHistory.length / 2),
+            ts: Date.now(),
+            messages: JSON.parse(JSON.stringify(STATE.conversationHistory)),
+        };
+        STATE.historyList.unshift(entry);
+        if (STATE.historyList.length > 50) STATE.historyList = STATE.historyList.slice(0, 50);
+        try { localStorage.setItem('socrates_history_list', JSON.stringify(STATE.historyList)); } catch(e) {}
+    }
+
+    function renderHistoryList() {
+        const container = document.getElementById('historyList');
+        if (STATE.historyList.length === 0) {
+            container.innerHTML = `<div class="history-empty"><div class="icon">💬</div>还没有对话记录<br>开始学习后，对话会自动保存在这里</div>`;
+            return;
+        }
+        container.innerHTML = STATE.historyList.map(h => {
+            const subj = SUBJECTS[h.subject] || SUBJECTS.math;
+            const date = new Date(h.ts).toLocaleDateString('zh-CN', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+            return `<div class="history-item" onclick="restoreHistory(${h.id})">
+                <div class="sum">${subj.icon} ${h.summary}</div>
+                <div class="meta"><span>${h.count} 轮对话</span><span>${date}</span></div>
+            </div>`;
+        }).join('');
+    }
+
+    function restoreHistory(id) {
+        const entry = STATE.historyList.find(h => h.id === id);
+        if (!entry) return;
+        // Show confirm unless current chat is empty
+        if (STATE.conversationHistory.length > 0) {
+            saveCurrentToHistory();
+        }
+        STATE.conversationHistory = JSON.parse(JSON.stringify(entry.messages));
+        try { localStorage.setItem('socrates_history', JSON.stringify(STATE.conversationHistory)); } catch(e) {}
+        // Set subject
+        document.getElementById('selSubject').value = entry.subject;
+        STATE.currentSubject = entry.subject;
+        renderWelcomeExamples();
+        // Rebuild UI
+        document.getElementById('welcomeCard').style.display = 'none';
+        document.getElementById('messages').querySelectorAll('.message').forEach(el => el.remove());
+        for (const msg of STATE.conversationHistory) {
+            addMessage(msg.content, msg.role === 'assistant' ? 'bot' : 'user');
+        }
+        closeDrawer();
+        showToast('已恢复对话');
+    }
+
+    // ---- Wrong Book ----
+    function saveToWrongBook(btn, historyIdx) {
+        // Find the Q&A pair
+        const msgs = STATE.conversationHistory;
+        if (msgs.length < 2) return;
+        // Get the last question and answer
+        let question = '', answer = '';
+        if (historyIdx > 0 && msgs[historyIdx-2]?.role === 'user') {
+            question = msgs[historyIdx-2].content;
+            answer = msgs[historyIdx-1]?.content || '';
+        } else {
+            // Fallback: find last user-bot pair
+            for (let i = msgs.length - 1; i >= 1; i--) {
+                if (msgs[i].role === 'assistant' && msgs[i-1].role === 'user') {
+                    question = msgs[i-1].content;
+                    answer = msgs[i].content;
+                    break;
+                }
+            }
+        }
+        if (!question) return;
+
+        const entry = {
+            id: Date.now(),
+            subject: STATE.currentSubject,
+            question: question.slice(0, 100),
+            answer: answer.slice(0, 200),
+            ts: Date.now(),
+        };
+        // Check duplicate
+        if (STATE.wrongBook.some(w => w.question === entry.question)) {
+            showToast('⏳ 已经收藏过了');
+            return;
+        }
+        STATE.wrongBook.unshift(entry);
+        try { localStorage.setItem('socrates_wrongbook', JSON.stringify(STATE.wrongBook)); } catch(e) {}
+        btn.classList.add('saved');
+        btn.textContent = '✅ 已收藏';
+        updateDrawerCounts();
+        showToast('📥 已收藏到错题本');
+    }
+
+    let wrongFilterSubject = 'all';
+    function renderWrongList() {
+        const listContainer = document.getElementById('wrongList');
+        const filterContainer = document.getElementById('wrongFilter');
+
+        // Filter buttons
+        const subjects = [{ id:'all', name:'全部', icon:'📋' }];
+        for (const [id, s] of Object.entries(SUBJECTS)) {
+            const count = STATE.wrongBook.filter(w => w.subject === id).length;
+            if (count > 0) subjects.push({ id, name:s.name, icon:s.icon, count });
+        }
+        filterContainer.innerHTML = subjects.map(s => `
+            <button class="wrong-filter-btn ${wrongFilterSubject === s.id ? 'active' : ''}"
+                onclick="wrongFilterSubject='${s.id}';renderWrongList();">
+                ${s.icon} ${s.name}${s.count !== undefined ? ` (${s.count})` : ''}
+            </button>
+        `).join('');
+
+        // Items
+        const filtered = wrongFilterSubject === 'all'
+            ? STATE.wrongBook
+            : STATE.wrongBook.filter(w => w.subject === wrongFilterSubject);
+
+        if (filtered.length === 0) {
+            listContainer.innerHTML = `<div class="history-empty"><div class="icon">📕</div>错题本还是空的<br>在 AI 回复下方点击「收藏到错题本」来收集你的思考过程</div>`;
+            return;
+        }
+        listContainer.innerHTML = filtered.map(w => {
+            const subj = SUBJECTS[w.subject] || SUBJECTS.math;
+            const date = new Date(w.ts).toLocaleDateString('zh-CN', { month:'short', day:'numeric' });
+            return `<div class="wrong-item">
+                <div class="q">💡 ${w.question}</div>
+                <div class="a">${renderMarkdown(w.answer).replace(/<[^>]+>/g,'').slice(0, 120)}…</div>
+                <div class="meta">
+                    <span><span class="wrong-subject-tag" style="background:${subj.color}15;color:${subj.color};">${subj.icon} ${subj.name}</span> · ${date}</span>
+                    <button class="delete-btn" onclick="deleteWrongItem(${w.id})">🗑️</button>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    function deleteWrongItem(id) {
+        STATE.wrongBook = STATE.wrongBook.filter(w => w.id !== id);
+        try { localStorage.setItem('socrates_wrongbook', JSON.stringify(STATE.wrongBook)); } catch(e) {}
+        renderWrongList();
+        updateDrawerCounts();
+    }
+
+    // ---- Request Practice ----
+    async function requestPractice(btn, historyIdx) {
+        // Find last Q&A pair
+        const msgs = STATE.conversationHistory;
+        let question = '', answer = '';
+        for (let i = msgs.length - 1; i >= 1; i--) {
+            if (msgs[i].role === 'assistant' && msgs[i-1].role === 'user') {
+                question = msgs[i-1].content;
+                answer = msgs[i].content;
+                break;
+            }
+        }
+        if (!question) return;
+
+        const practicePrompt = `基于我们刚刚讨论的内容（问题：${question.slice(0,100)}），请出3道针对性的练习题来检验是否真正掌握了相关概念。注意：不要直接给出答案，每道题后面跟一个引导性问题，帮助学生自己找到答案。`;
+        document.getElementById('chatInput').value = practicePrompt;
+        autoResize(document.getElementById('chatInput'));
+        sendMessage();
+    }
+
+    // ---- Progress ----
+    function renderProgress() {
+        const container = document.getElementById('progressContent');
+        const tree = KNOWLEDGE_TREE[STATE.currentSubject] || KNOWLEDGE_TREE.math;
+        let mastered = 0, learning = 0, notStarted = 0, total = 0;
+        function countNodes(nodes) {
+            for (const n of nodes) {
+                if (n.status === 'mastered') mastered++;
+                else if (n.status === 'learning') learning++;
+                else notStarted++;
+                total++;
+                if (n.children) countNodes(n.children);
+            }
+        }
+        countNodes(tree.children || []);
+
+        const pct = total > 0 ? Math.round(((mastered + learning) / total) * 100) : 0;
+        const masteredDeg = total > 0 ? (mastered / total) * 360 : 0;
+        const learningDeg = total > 0 ? (learning / total) * 360 : 0;
+        const pieStyle = `conic-gradient(#27AE60 0deg ${masteredDeg}deg, #F39C12 ${masteredDeg}deg ${masteredDeg + learningDeg}deg, #E8F0EC ${masteredDeg + learningDeg}deg 360deg)`;
+
+        // Topic progress
+        let topicsHtml = '';
+        if (tree.children) {
+            topicsHtml = tree.children.map(c => {
+                let s = 0, t = 0;
+                function sub(n) { t++; if (n.status === 'mastered') s+=100; else if (n.status === 'learning') s+=50; if (n.children) n.children.forEach(sub); }
+                if (c.children) c.children.forEach(sub);
+                else { t=1; if (c.status === 'mastered') s=100; else if (c.status === 'learning') s=50; }
+                const p = t > 0 ? Math.round(s/t) : 0;
+                const barColor = p >= 80 ? '#27AE60' : p >= 40 ? '#F39C12' : '#E74C3C';
+                return `<div class="topic-progress-item">
+                    <span>${c.icon || '📄'}</span>
+                    <span style="flex:1;font-weight:500;">${c.name}</span>
+                    <div class="topic-bar"><div class="fill" style="width:${p}%;background:${barColor};"></div></div>
+                    <span class="topic-pct">${p}%</span>
+                </div>`;
+            }).join('');
+        }
+
+        // Current conversation count
+        const convCount = STATE.conversationHistory.length > 0 ? Math.ceil(STATE.conversationHistory.length / 2) : 0;
+
+        container.innerHTML = `
+            <div style="margin-bottom:20px;">
+                <div class="progress-pie-wrap">
+                    <div class="progress-pie" style="background:${pieStyle};">
+                        <div class="progress-pie-inner">${pct}%</div>
+                    </div>
+                    <div class="progress-legend">
+                        <div><span class="dot" style="background:#27AE60;"></span>已掌握 ${mastered}</div>
+                        <div><span class="dot" style="background:#F39C12;"></span>学习中 ${learning}</div>
+                        <div><span class="dot" style="background:#E8F0EC;"></span>未开始 ${notStarted}</div>
+                    </div>
+                </div>
+            </div>
+            <div style="margin-bottom:16px;font-size:13px;color:var(--text-secondary);">
+                <strong style="font-size:14px;color:var(--text);">${tree.icon} ${tree.name}</strong> · 当前学科进度
+            </div>
+            ${topicsHtml}
+            <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);font-size:13px;color:var(--text-secondary);">
+                <div style="display:flex;justify-content:space-between;padding:4px 0;">
+                    <span>💬 本对话已交流</span>
+                    <span style="font-weight:700;color:var(--text);">${convCount} 轮</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;padding:4px 0;">
+                    <span>📕 错题本收藏</span>
+                    <span style="font-weight:700;color:var(--text);">${STATE.wrongBook.length} 条</span>
+                </div>
+            </div>
+        `;
+    }
+
+    function updateDrawerCounts() {
+        document.getElementById('historyCount').textContent = STATE.historyList.length;
+        document.getElementById('wrongCount').textContent = STATE.wrongBook.length;
+    }
+
+    // ======================================================================
+    // 12. KEYBOARD SHORTCUTS
+    // ======================================================================
+    document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'b') { e.preventDefault(); toggleDrawer(); }
+        if (e.key === 'Escape') { if (STATE.drawerOpen) closeDrawer(); }
+    });
+
+    // ======================================================================
+    // 13. INIT
+    // ======================================================================
+    function restoreConversation() {
+        if (STATE.conversationHistory.length > 0) {
+            document.getElementById('welcomeCard').style.display = 'none';
+            for (const msg of STATE.conversationHistory) {
+                const role = msg.role === 'assistant' ? 'bot' : 'user';
+                const div = document.createElement('div');
+                div.className = `message ${role}`;
+                const avatar = document.createElement('div');
+                avatar.className = 'msg-avatar';
+                avatar.textContent = role === 'bot' ? 'Σ' : '👤';
+                const content = document.createElement('div');
+                content.className = 'msg-content';
+                const bubble = document.createElement('div');
+                bubble.className = 'msg-bubble';
+                if (role === 'bot') bubble.innerHTML = renderMarkdown(msg.content);
+                else bubble.textContent = msg.content;
+                content.appendChild(bubble);
+                const actions = document.createElement('div');
+                actions.className = 'msg-actions';
+                if (role === 'bot') {
+                    actions.innerHTML = `<button class="msg-action-btn" onclick="saveToWrongBook(this, -1)">📥 收藏到错题本</button>
+                        <button class="msg-action-btn" onclick="requestPractice(this, -1)">📝 出几道练习题</button>`;
+                    content.appendChild(actions);
+                    setTimeout(() => actions.classList.add('always-visible'), 800);
+                    setTimeout(() => actions.classList.remove('always-visible'), 6000);
+                }
+                if (role === 'bot') { div.appendChild(avatar); div.appendChild(content); }
+                else { div.appendChild(content); div.appendChild(avatar); }
+                document.getElementById('messages').appendChild(div);
+            }
+            document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+        }
+    }
+
+    renderWelcomeExamples();
+    initSubjectSelector();
+    restoreConversation();
+    updateDrawerCounts();
+    console.log('🧠 苏格拉底伴学已加载  |  Ctrl+B 打开学习中心');
+</script>
+</body>
+</html>
