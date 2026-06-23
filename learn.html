@@ -341,7 +341,7 @@
         }
         @keyframes msgIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         .message.bot { align-self: flex-start; }
-        .message.user { align-self: flex-end; flex-direction: row-reverse; }
+        .message.user { align-self: flex-end; }
 
         .msg-avatar {
             width: 32px; height: 32px; min-width: 32px;
@@ -515,6 +515,53 @@
             .msg-bubble { font-size: 14px; }
             .msg-actions { opacity: 1; }
         }
+
+        /* ===== Onboarding Overlay ===== */
+        .onboard-overlay {
+            position: fixed; inset: 0; z-index: 300;
+            background: rgba(44, 33, 28, 0.92);
+            backdrop-filter: blur(8px);
+            display: none; align-items: center; justify-content: center;
+            padding: 24px;
+        }
+        .onboard-card {
+            background: var(--card); border-radius: 24px;
+            max-width: 440px; width: 100%; padding: 40px 36px 32px;
+            text-align: center; animation: fadeUp 0.5s ease;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .onboard-card .icon { font-size: 56px; margin-bottom: 12px; }
+        .onboard-card h2 { font-size: 22px; font-weight: 800; color: var(--text); margin-bottom: 6px; }
+        .onboard-card .sub { font-size: 14px; color: var(--text-secondary); margin-bottom: 24px; }
+        .onboard-card input {
+            width: 100%; padding: 12px 16px; border: 1.5px solid var(--border);
+            border-radius: 12px; font-size: 16px; font-family: inherit;
+            outline: none; text-align: center;
+            transition: border-color 0.2s; background: var(--bg-warm);
+            color: var(--text);
+        }
+        .onboard-card input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); }
+        .onboard-card .sel-group {
+            display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px;
+        }
+        .onboard-card .sel-group select {
+            padding: 10px 14px; border: 1.5px solid var(--border);
+            border-radius: 12px; font-size: 15px; font-family: inherit;
+            background: var(--bg-warm); color: var(--text);
+            outline: none; cursor: pointer; transition: border-color 0.2s;
+            text-align: center;
+        }
+        .onboard-card .sel-group select:focus { border-color: var(--primary); }
+        .onboard-btn {
+            width: 100%; padding: 12px; border: none; border-radius: 12px;
+            font-size: 16px; font-weight: 700; cursor: pointer;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: #fff; transition: transform 0.15s, box-shadow 0.15s;
+        }
+        .onboard-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px var(--primary-glow); }
+        .onboard-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+        .onboard-step { display: none; }
+        .onboard-step.active { display: block; }
     </style>
 </head>
 <body>
@@ -647,6 +694,52 @@
 
     </main>
 
+    <!-- ===== Onboarding Overlay ===== -->
+    <div class="onboard-overlay" id="onboardOverlay">
+        <div class="onboard-card">
+            <!-- Step 1: 问姓名 -->
+            <div class="onboard-step active" id="onboardStep1">
+                <div class="icon">🎉</div>
+                <h2>欢迎来到苏格拉底伴学！</h2>
+                <p class="sub">在开始学习之前，先认识一下吧——<br>你叫什么名字？</p>
+                <input type="text" id="onboardName" placeholder="输入你的名字…" maxlength="20" oninput="onboardNameInput()">
+                <br><br>
+                <button class="onboard-btn" id="onboardNextBtn" onclick="onboardNext()" disabled>下一步 →</button>
+            </div>
+            <!-- Step 2: 学习设置 -->
+            <div class="onboard-step" id="onboardStep2">
+                <div class="icon">📚</div>
+                <h2 id="onboardGreeting">你好，！</h2>
+                <p class="sub">选一下你的学习设置，随时可以更改</p>
+                <div class="sel-group">
+                    <select id="onboardSubject">
+                        <option value="math">📐 数学</option>
+                        <option value="physics">⚛️ 物理</option>
+                        <option value="chemistry">🧪 化学</option>
+                        <option value="english">🇬🇧 英语</option>
+                        <option value="chinese">📖 语文</option>
+                        <option value="biology">🌿 生物</option>
+                    </select>
+                    <select id="onboardGrade">
+                        <option value="7">七年级</option>
+                        <option value="8">八年级</option>
+                        <option value="9">九年级</option>
+                        <option value="10">高一</option>
+                        <option value="11">高二</option>
+                        <option value="12" selected>高三</option>
+                    </select>
+                    <select id="onboardTextbook">
+                        <option value="national">全国统一</option>
+                        <option value="pep">人教版</option>
+                        <option value="bsd">北师大版</option>
+                        <option value="sjb">苏教版</option>
+                    </select>
+                </div>
+                <button class="onboard-btn" onclick="onboardComplete()">开始学习 🚀</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ===== Toast Container ===== -->
     <div class="toast-container" id="toastContainer"></div>
 
@@ -664,6 +757,7 @@
         conversationHistory: [], // for API (role/content pairs)
         historyList: [],       // saved conversations [{id, subject, summary, count, ts, messages}]
         wrongBook: [],         // [{id, subject, question, answer, ts}]
+        profile: null,         // { name, grade, textbook } — null 表示首次使用
     };
     // Load from localStorage
     try {
@@ -675,6 +769,8 @@
         if (wb) STATE.wrongBook = JSON.parse(wb);
         const sj = localStorage.getItem('socrates_subject');
         if (sj) STATE.currentSubject = sj;
+        const p = localStorage.getItem('socrates_profile');
+        if (p) STATE.profile = JSON.parse(p);
     } catch(e) {}
 
     // ======================================================================
@@ -1325,7 +1421,65 @@
     });
 
     // ======================================================================
-    // 13. INIT
+    // 13. ONBOARDING
+    // ======================================================================
+    function onboardNameInput() {
+        const name = document.getElementById('onboardName').value.trim();
+        document.getElementById('onboardNextBtn').disabled = !name;
+    }
+    // 回车键触发下一步
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && document.getElementById('onboardStep1').classList.contains('active')) {
+            const name = document.getElementById('onboardName').value.trim();
+            if (name) onboardNext();
+        }
+    });
+
+    function onboardNext() {
+        const name = document.getElementById('onboardName').value.trim();
+        if (!name) return;
+        document.getElementById('onboardGreeting').textContent = `你好，${name}！`;
+        document.getElementById('onboardStep1').classList.remove('active');
+        document.getElementById('onboardStep2').classList.add('active');
+        // 聚焦到学科下拉框
+        document.getElementById('onboardSubject').focus();
+    }
+
+    function onboardComplete() {
+        const name = document.getElementById('onboardName').value.trim();
+        const subject = document.getElementById('onboardSubject').value;
+        const grade = document.getElementById('onboardGrade').value;
+        const textbook = document.getElementById('onboardTextbook').value;
+
+        STATE.profile = { name, grade, textbook };
+        STATE.currentSubject = subject;
+        try {
+            localStorage.setItem('socrates_profile', JSON.stringify(STATE.profile));
+            localStorage.setItem('socrates_subject', subject);
+        } catch(e) {}
+
+        // 同步顶栏学科下拉框
+        document.getElementById('selSubject').value = subject;
+
+        // 隐藏遮罩
+        document.getElementById('onboardOverlay').style.display = 'none';
+
+        // 更新欢迎卡
+        updateWelcomeName();
+        renderWelcomeExamples();
+    }
+
+    function updateWelcomeName() {
+        if (STATE.profile) {
+            const h1 = document.querySelector('#welcomeCard h1');
+            if (h1) {
+                h1.innerHTML = `Hi ${STATE.profile.name}，今天想挑战哪个知识点？<span class="highlight">🤔</span>`;
+            }
+        }
+    }
+
+    // ======================================================================
+    // 14. INIT
     // ======================================================================
     function restoreConversation() {
         if (STATE.conversationHistory.length > 0) {
@@ -1361,10 +1515,24 @@
         }
     }
 
-    renderWelcomeExamples();
     initSubjectSelector();
-    restoreConversation();
     updateDrawerCounts();
+    // 检查是否有用户 profile
+    if (STATE.profile) {
+        // 已有 profile → 隐藏引导，正常进入
+        document.getElementById('onboardOverlay').style.display = 'none';
+        updateWelcomeName();
+        renderWelcomeExamples();
+        restoreConversation();
+    } else {
+        // 首次使用 → 显示引导，不恢复旧对话
+        // 清除可能残留的旧对话
+        STATE.conversationHistory = [];
+        try { localStorage.setItem('socrates_history', JSON.stringify([])); } catch(e) {}
+        document.getElementById('onboardOverlay').style.display = 'flex';
+        // 聚焦姓名输入框
+        setTimeout(() => document.getElementById('onboardName').focus(), 300);
+    }
     console.log('🧠 苏格拉底伴学已加载  |  Ctrl+B 打开学习中心');
 </script>
 </body>
