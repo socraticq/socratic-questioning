@@ -902,7 +902,7 @@
     // 8. API INTEGRATION — 通过 Cloudflare Worker 代理
     // ======================================================================
     // ⚠️ 请将下面的 URL 替换为你的 Cloudflare Worker 地址
-    const WORKER_URL = 'https://your-worker.workers.dev/api/chat';
+    const WORKER_URL = 'https://socraticquestioning.1924199412.workers.dev';
 
     async function callClaudeAPI(userMessage) {
         const messages = [{ role: 'system', content: getSystemPrompt(STATE.currentSubject) }];
@@ -913,6 +913,7 @@
 
         const response = await fetch(WORKER_URL, {
             method: 'POST',
+            mode: 'cors',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 model: 'deepseek-chat',
