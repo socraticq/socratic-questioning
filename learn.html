@@ -340,8 +340,10 @@
         }
         @keyframes msgIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         .message.bot { align-self: flex-start; }
-        .message.user { align-self: flex-end; }
+        .message.user { align-self: flex-end; flex-direction: row-reverse; }
         .message.user .msg-content { align-items: flex-end; }
+        .message.user .msg-bubble { text-align: left; }
+        .message.user .msg-bubble { text-align: right; }
 
         .msg-avatar {
             width: 32px; height: 32px; min-width: 32px;
@@ -1197,10 +1199,21 @@
             const subj = SUBJECTS[h.subject] || SUBJECTS.math;
             const date = new Date(h.ts).toLocaleDateString('zh-CN', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
             return `<div class="history-item" onclick="restoreHistory(${h.id})">
-                <div class="sum">${subj.icon} ${h.summary}</div>
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                    <div class="sum">${subj.icon} ${h.summary}</div>
+                    <button onclick="event.stopPropagation();deleteHistory(${h.id})" style="border:none;background:transparent;color:var(--text-light);cursor:pointer;font-size:14px;padding:2px 4px;border-radius:4px;flex-shrink:0;transition:all 0.2s;" onmouseover="this.style.color='#ef4444';this.style.background='#fee2e2'" onmouseout="this.style.color='';this.style.background='transparent'">🗑️</button>
+                </div>
                 <div class="meta"><span>${h.count} 轮对话</span><span>${date}</span></div>
             </div>`;
         }).join('');
+    }
+
+    function deleteHistory(id) {
+        if (!confirm('确定要删除这条对话记录吗？')) return;
+        STATE.historyList = STATE.historyList.filter(h => h.id !== id);
+        try { localStorage.setItem('socrates_history_list', JSON.stringify(STATE.historyList)); } catch(e) {}
+        renderHistoryList();
+        updateDrawerCounts();
     }
 
     function restoreHistory(id) {
