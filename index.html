@@ -114,42 +114,15 @@
         }
         .nav-links a:hover { color: var(--primary); }
         .nav-logo { color: #F5EDE6; }
-        .nav-deco {
-            width: 180px;
-            height: 180px;
-            border-radius: 10px;
-            background: #463933;
-            transform: rotate(12deg);
-            position: absolute;
-            right: 180px;
-            top: 80px;
-        }
-        .nav-deco-sm {
-            width: 111px;
-            height: 111px;
-            border-radius: 10px;
-            background: #463933;
-            transform: rotate(-12deg);
-            position: absolute;
-            right: 300px;
-            top: 380px;
-        }
-        .nav-deco-xs {
-            width: 55px;
-            height: 55px;
-            border-radius: 8px;
-            background: #463933;
-            transform: rotate(8deg);
-            position: absolute;
-            right: 80px;
-            bottom: 170px;
-        }
 
         /* ===== Section 1: Hero ===== */
         #hero {
             padding-top: 60px;
             min-height: 100vh;
-            background: linear-gradient(180deg, #2C211C 0%, #3A2C26 81%, #6B5548 86%, #DDD1C6 92%, #FAF8F5 100%);
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1920' height='900' viewBox='0 0 1920 900'%3E%3Cg transform='translate(1380,80) rotate(12)'%3E%3Crect width='189' height='189' rx='10' fill='%23463933'/%3E%3C/g%3E%3Cg transform='translate(1289,460) rotate(-12)'%3E%3Crect width='117' height='117' rx='10' fill='%23463933'/%3E%3C/g%3E%3Cg transform='translate(1510,280) rotate(8)'%3E%3Crect width='55' height='55' rx='8' fill='%23463933'/%3E%3C/g%3E%3C/svg%3E"), linear-gradient(180deg, #2C211C 0%, #3A2C26 81%, #6B5548 86%, #DDD1C6 92%, #FAF8F5 100%);
+            background-position: center top, 0 0;
+            background-repeat: no-repeat, repeat;
+            background-size: cover, 100% 100%;
             overflow: hidden;
             position: relative;
         }
@@ -343,47 +316,36 @@
         .float-el .icon { font-size: 20px; }
         .float-el .label { color: #999; }
 
-        #methods { background: #F3EEE8; padding: 80px 0; }
-        #methods .section-title { color: var(--primary); text-align: center; font-size: clamp(28px, 4vw, 44px); font-weight: 800; margin-bottom: 20px; }
-        #methods .section-desc { color: #2D3436; text-align: center; margin: 0 auto 48px; max-width: 600px; line-height: 1.8; font-size: clamp(15px, 1.8vw, 18px); }
+        #methods { background: #F3EEE8; padding: 60px 0; }
+        #methods .section-title { color: var(--primary); text-align: center; font-size: clamp(28px, 4vw, 44px); font-weight: 800; margin-bottom: 16px; }
+        #methods .section-desc { color: #2D3436; text-align: center; margin: 0 auto 32px; max-width: 600px; line-height: 1.8; font-size: clamp(15px, 1.8vw, 18px); }
         #methods .method-card h3 { color: #2D3436; }
         #methods .method-card p { color: #2D3436; }
         .methods-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 24px;
-            max-width: 920px;
+            gap: 14px;
+            max-width: 780px;
             margin: 0 auto;
         }
         .method-card {
-            padding: 28px 28px 24px;
-            border-radius: 16px;
+            padding: 18px 20px 16px;
+            border-radius: 14px;
             background: #FFFFFF;
             border: 1px solid #EDE4D8;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+            box-shadow: 0 1px 6px rgba(0,0,0,0.04);
             transition: transform 0.3s, box-shadow 0.3s;
         }
         .method-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.08);
         }
-        .method-card .icon {
-            width: 48px; height: 48px;
-            border-radius: 12px;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 24px;
-            margin-bottom: 14px;
-        }
-        .method-card:nth-child(1) .icon { background: #FFF0E0; }
-        .method-card:nth-child(2) .icon { background: rgba(142,68,173,0.08); }
-        .method-card:nth-child(3) .icon { background: rgba(231,76,60,0.06); }
-        .method-card:nth-child(4) .icon { background: rgba(248,176,66,0.12); }
-        .method-card h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
-        .method-card p { font-size: 14px; color: #666; line-height: 1.7; }
-        .method-card .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+        .method-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+        .method-card p { font-size: 13px; color: #2D3436; line-height: 1.6; }
+        .method-card .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
         .method-card .tags span {
-            padding: 3px 10px; border-radius: 6px;
-            font-size: 12px; font-weight: 500;
+            padding: 2px 8px; border-radius: 5px;
+            font-size: 11px; font-weight: 500;
             background: #FFF0E0;
             color: #2D3436;
         }
@@ -507,9 +469,6 @@
 
 <!-- ===== Section 1: Hero ===== -->
 <section id="hero" class="section">
-    <div class="nav-deco"></div>
-    <div class="nav-deco-sm"></div>
-    <div class="nav-deco-xs"></div>
     <div class="container">
         <div>
             <div class="hero-badge">AI 苏格拉底式教学</div>
@@ -540,7 +499,7 @@
     <div class="container">
         <div style="text-align:center;">
             <span class="section-badge">🎓 教学方法</span>
-            <h2 class="section-title">五大核心教学法</h2>
+            <h2 class="section-title">四大核心伴学法</h2>
             <p class="section-desc">
                 融合经典的启发式教学理念，针对中国初高中学生的学习特点量身定制。<br>
                 我们不教答案，我们教思考。
@@ -548,25 +507,21 @@
         </div>
         <div class="methods-grid">
             <div class="method-card">
-                <div class="icon">❓</div>
                 <h3>苏格拉底式提问</h3>
                 <p>通过连续追问引导学生自己发现答案。不是"因为所以"，而是"你怎么想的？为什么？还有吗？"</p>
                 <div class="tags"><span>追问</span><span>启发</span><span>发现</span></div>
             </div>
             <div class="method-card">
-                <div class="icon">🧩</div>
                 <h3>第一性原理思考</h3>
                 <p>回到最基本的定义和原理，从公理出发重新推导。不依赖套路，培养真正的理解力。</p>
                 <div class="tags"><span>回归定义</span><span>本质</span><span>拆解</span></div>
             </div>
             <div class="method-card">
-                <div class="icon">🗣️</div>
                 <h3>费曼学习法</h3>
                 <p>要求你用自己的话解释概念。如果说不清楚，说明还没真懂。"假装给同学讲一遍"。</p>
                 <div class="tags"><span>输出</span><span>检验</span><span>简化</span></div>
             </div>
             <div class="method-card">
-                <div class="icon">📊</div>
                 <h3>形成性评估</h3>
                 <p>持续发现知识漏洞，诊断概念缺失、混淆、断裂等不同类型的问题，精准定位薄弱点。</p>
                 <div class="tags"><span>诊断</span><span>定位</span><span>追踪</span></div>
@@ -719,3 +674,4 @@
 </script>
 </body>
 </html>
+
