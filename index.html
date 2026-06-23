@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>苏格拉底伴学 — AI 启发式学习助手</title>
+    <style>
+        /* ===== Reset & Variables ===== */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { scroll-behavior: smooth; }
+        :root {
+            --primary: #E07D30;
+            --primary-dark: #CC6B22;
+            --primary-light: #FFF0E0;
+            --primary-glow: rgba(224,125,48,0.2);
+            --bg: #2C211C;
+            --bg-alt: #3A2C26;
+            --card: #FFFFFF;
+            --text: #F5EDE6;
+            --text-secondary: #C4B8AD;
+            --text-light: #8F8073;
+            --border: #3D2F28;
+            --shadow-sm: 0 2px 8px rgba(0,0,0,0.2);
+            --shadow-md: 0 4px 20px rgba(0,0,0,0.25);
+            --shadow-lg: 0 8px 40px rgba(0,0,0,0.3);
+            --radius-sm: 8px;
+            --radius-md: 14px;
+            --radius-lg: 20px;
+            --radius-xl: 28px;
+            --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+            color: var(--text);
+            background: #FAF8F5;
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+        a { text-decoration: none; color: inherit; }
+
+        /* ===== Utility ===== */
+        .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+        .gradient-text {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .section-badge {
+            display: inline-block;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--primary);
+            background: var(--primary-light);
+            letter-spacing: 1px;
+            margin-bottom: 16px;
+        }
+
+        /* ===== Section Base ===== */
+        .section {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            padding: 60px 0;
+            position: relative;
+        }
+        .section-title {
+            font-size: clamp(28px, 4vw, 44px);
+            font-weight: 800;
+            margin-bottom: 20px;
+            line-height: 1.25;
+        }
+        .section-desc {
+            font-size: clamp(15px, 1.8vw, 18px);
+            color: var(--text-secondary);
+            max-width: 600px;
+            line-height: 1.8;
+        }
+
+        /* ===== Navigation ===== */
+        nav {
+            position: fixed; top: 0; left: 0; right: 0;
+            z-index: 100;
+            padding: 16px 0;
+            background: rgba(44, 33, 28, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+            transition: box-shadow var(--transition);
+        }
+        nav.scrolled { box-shadow: var(--shadow-md); }
+        nav .container {
+            display: flex; align-items: center; justify-content: space-between;
+            position: relative;
+        }
+        .nav-logo {
+            display: flex; align-items: center; gap: 10px;
+            font-weight: 800; font-size: 17px; color: #FFFFFF;
+        }
+        .nav-logo .logo-icon {
+            width: 30px; height: 30px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            color: #fff; font-size: 15px; font-weight: 700;
+            background: transparent;
+        }
+        .nav-links { display: flex; align-items: center; gap: 28px; }
+        .nav-links a {
+            font-size: 14px; font-weight: 500; color: var(--text-secondary);
+            transition: color 0.2s;
+        }
+        .nav-links a:hover { color: var(--primary); }
+        .nav-logo { color: #F5EDE6; }
+        .nav-deco {
+            width: 180px;
+            height: 180px;
+            border-radius: 10px;
+            background: #463933;
+            transform: rotate(12deg);
+            position: absolute;
+            right: 180px;
+            top: 80px;
+        }
+        .nav-deco-sm {
+            width: 111px;
+            height: 111px;
+            border-radius: 10px;
+            background: #463933;
+            transform: rotate(-12deg);
+            position: absolute;
+            right: 300px;
+            top: 380px;
+        }
+        .nav-deco-xs {
+            width: 55px;
+            height: 55px;
+            border-radius: 8px;
+            background: #463933;
+            transform: rotate(8deg);
+            position: absolute;
+            right: 80px;
+            bottom: 170px;
+        }
+
+        /* ===== Section 1: Hero ===== */
+        #hero {
+            padding-top: 60px;
+            min-height: 100vh;
+            background: linear-gradient(180deg, #2C211C 0%, #3A2C26 81%, #6B5548 86%, #DDD1C6 92%, #FAF8F5 100%);
+            overflow: hidden;
+            position: relative;
+        }
+        #hero::after {
+            content: '';
+            position: absolute;
+            bottom: 8%;
+            left: 3%;
+            right: 3%;
+            height: 12px;
+            border-radius: 8px;
+            filter: blur(3px);
+            background: linear-gradient(90deg, transparent, rgba(255,245,235,0.4) 20%, rgba(255,245,235,0.55) 50%, rgba(255,245,235,0.4) 80%, transparent);
+        }
+        #hero .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 400;
+            color: #FFFFFF;
+            background: #483D37;
+            border: 1px solid #5B524B;
+            margin-bottom: 20px;
+        }
+        .hero-title {
+            font-size: clamp(42px, 5.5vw, 64px);
+            font-weight: 900;
+            line-height: 1.15;
+            margin-bottom: 16px;
+            letter-spacing: -0.5px;
+            color: #FFFFFF;
+        }
+        .hero-title .highlight {
+            color: #E09C85;
+        }
+        .hero-sub {
+            font-size: clamp(15px, 1.6vw, 18px);
+            color: var(--text-secondary);
+            line-height: 1.8;
+            margin-top: 16px;
+            margin-bottom: 32px;
+            max-width: 560px;
+            margin-left: auto;
+            margin-right: auto;
+            font-weight: 300;
+        }
+        .hero-actions { display: flex; gap: 16px; align-items: center; justify-content: center; flex-wrap: wrap; }
+        .btn-primary {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 10px 28px;
+            border-radius: var(--radius-md);
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: #fff;
+            font-weight: 700;
+            font-size: 15px;
+            border: none;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 4px 14px var(--primary-glow);
+        }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(224,125,48,0.3); }
+
+        .btn-secondary {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 10px 24px;
+            border-radius: var(--radius-md);
+            background: transparent;
+            color: var(--primary);
+            font-weight: 600;
+            font-size: 15px;
+            border: 1.5px solid #5B524B;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-secondary:hover { border-color: var(--primary); background: var(--primary-light); }
+        .hero-stats { display: none; }
+        .hero-features {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            align-items: center;
+            margin-top: 24px;
+            flex-wrap: wrap;
+        }
+        .hero-features span {
+            font-size: 12px;
+            font-weight: 400;
+            color: #B8A89C;
+            letter-spacing: 0.5px;
+        }
+        .hero-features .icon {
+            font-size: 9px;
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 2px;
+        }
+        .hero-features .dot {
+            width: 3px; height: 3px;
+            border-radius: 50%;
+            background: #6B5548;
+        }
+
+        /* Hero visual */
+        .hero-visual {
+            display: flex; justify-content: center; align-items: center;
+            position: relative;
+        }
+        .hero-visual-inner {
+            width: 100%; max-width: 480px;
+            aspect-ratio: 4/3;
+            background: var(--card);
+            border-radius: var(--radius-lg);
+            box-shadow: 0 20px 60px rgba(224,125,48,0.12);
+            padding: 32px;
+            position: relative;
+            overflow: hidden;
+        }
+        .visual-chat .msg {
+            display: flex; margin-bottom: 16px; animation: fadeUp 0.5s ease forwards;
+            opacity: 0;
+        }
+        .visual-chat .msg:nth-child(1) { animation-delay: 0.2s; }
+        .visual-chat .msg:nth-child(2) { animation-delay: 0.6s; }
+        .visual-chat .msg:nth-child(3) { animation-delay: 1.0s; }
+        .visual-chat .msg:nth-child(4) { animation-delay: 1.4s; }
+        @keyframes fadeUp { to { opacity: 1; transform: translateY(0); } }
+        .msg.avatar { justify-content: flex-start; }
+        .msg.user { justify-content: flex-end; }
+        .msg-bubble {
+            max-width: 80%;
+            padding: 12px 16px;
+            border-radius: 16px;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .msg.avatar .msg-bubble {
+            background: var(--primary-light);
+            color: #333;
+            border-bottom-left-radius: 4px;
+        }
+        .msg.user .msg-bubble {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: #fff;
+            border-bottom-right-radius: 4px;
+        }
+        .visual-question {
+            position: absolute; bottom: 20px; left: 24px; right: 24px;
+            display: flex; gap: 8px;
+        }
+        .visual-question input {
+            flex: 1; padding: 10px 16px;
+            border: 1px solid var(--border); border-radius: 10px;
+            font-size: 14px; outline: none; color: #333;
+        }
+        .visual-question button {
+            width: 40px; height: 40px;
+            border-radius: 10px;
+            border: none;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: #fff; font-size: 18px; cursor: pointer;
+        }
+
+        /* floating elements */
+        .float-el {
+            position: absolute;
+            background: var(--card);
+            border-radius: 16px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.06);
+            padding: 12px 16px;
+            font-size: 13px;
+            font-weight: 500;
+            display: flex; align-items: center; gap: 8px;
+            animation: float 6s ease-in-out infinite;
+        }
+        .float-el-1 { top: -10px; right: -20px; animation-delay: 0s; }
+        .float-el-2 { bottom: 40px; left: -30px; animation-delay: 2s; }
+        .float-el-3 { top: 50%; right: -25px; animation-delay: 4s; }
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-8px); }
+        }
+        .float-el .icon { font-size: 20px; }
+        .float-el .label { color: #999; }
+
+        #methods { background: #F3EEE8; padding: 80px 0; }
+        #methods .section-title { color: var(--primary); text-align: center; font-size: clamp(28px, 4vw, 44px); font-weight: 800; margin-bottom: 20px; }
+        #methods .section-desc { color: #2D3436; text-align: center; margin: 0 auto 48px; max-width: 600px; line-height: 1.8; font-size: clamp(15px, 1.8vw, 18px); }
+        #methods .method-card h3 { color: #2D3436; }
+        #methods .method-card p { color: #2D3436; }
+        .methods-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+            max-width: 920px;
+            margin: 0 auto;
+        }
+        .method-card {
+            padding: 28px 28px 24px;
+            border-radius: 16px;
+            background: #FFFFFF;
+            border: 1px solid #EDE4D8;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        .method-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+        }
+        .method-card .icon {
+            width: 48px; height: 48px;
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 24px;
+            margin-bottom: 14px;
+        }
+        .method-card:nth-child(1) .icon { background: #FFF0E0; }
+        .method-card:nth-child(2) .icon { background: rgba(142,68,173,0.08); }
+        .method-card:nth-child(3) .icon { background: rgba(231,76,60,0.06); }
+        .method-card:nth-child(4) .icon { background: rgba(248,176,66,0.12); }
+        .method-card h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+        .method-card p { font-size: 14px; color: #666; line-height: 1.7; }
+        .method-card .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+        .method-card .tags span {
+            padding: 3px 10px; border-radius: 6px;
+            font-size: 12px; font-weight: 500;
+            background: #FFF0E0;
+            color: #2D3436;
+        }
+
+        /* ===== Section 3: How It Works ===== */
+        #how-it-works {
+            background: linear-gradient(180deg, #FAF8F5 0%, #FFF2E8 100%);
+        }
+        #how-it-works .section-title { color: #2D3436; }
+        #how-it-works .section-desc { color: #636E72; }
+        #how-it-works .step h3 { color: #2D3436; }
+        #how-it-works .step p { color: #636E72; }
+        .steps {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            margin-top: 16px;
+        }
+        .step { text-align: center; padding: 24px 16px; }
+        .step-num {
+            width: 56px; height: 56px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: #fff;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 22px; font-weight: 800;
+            margin: 0 auto 20px;
+        }
+        .step h3 { font-size: 20px; font-weight: 700; margin-bottom: 10px; }
+        .step p { font-size: 14px; color: var(--text-secondary); line-height: 1.7; max-width: 280px; margin: 0 auto; }
+        /* ===== Section 4: Philosophy ===== */
+        #philosophy { background: #FAF8F5; }
+        #philosophy .section-title { color: #2D3436; }
+        #philosophy .section-desc { color: #636E72; }
+        #philosophy .philosophy-list h4 { color: #2D3436; }
+        #philosophy .philosophy-list p { color: #777; }
+        .philosophy-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 48px;
+            align-items: center;
+        }
+        .philosophy-list { list-style: none; }
+        .philosophy-list li {
+            display: flex; gap: 14px; align-items: flex-start;
+            padding: 16px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .philosophy-list li:last-child { border-bottom: none; }
+        .philosophy-list .check {
+            width: 24px; height: 24px; min-width: 24px;
+            border-radius: 50%;
+            background: var(--primary-light);
+            display: flex; align-items: center; justify-content: center;
+            color: var(--primary); font-size: 14px; font-weight: 700;
+            margin-top: 2px;
+        }
+        .philosophy-list h4 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+        .philosophy-list p { font-size: 14px; color: var(--text-light); }
+        .philosophy-cta {
+            padding: 40px;
+            border-radius: var(--radius-lg);
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: #fff;
+            text-align: center;
+        }
+        .philosophy-cta h3 { font-size: 28px; font-weight: 800; margin-bottom: 12px; }
+        .philosophy-cta p { font-size: 15px; opacity: 0.85; margin-bottom: 28px; }
+        .philosophy-cta .btn-primary { background: #fff; color: var(--primary); box-shadow: 0 4px 14px rgba(0,0,0,0.12); }
+
+        /* ===== Footer ===== */
+        footer {
+            padding: 32px 0;
+            color: rgba(255,255,255,0.7);
+            text-align: center;
+            font-size: 14px;
+        }
+        footer span { color: rgba(255,255,255,0.4); }
+
+        /* ===== Scroll indicator ===== */
+        .scroll-indicator {
+            position: absolute; bottom: 32px; left: 50%;
+            transform: translateX(-50%);
+            display: flex; flex-direction: column; align-items: center;
+            gap: 6px; color: var(--text-light); font-size: 12px;
+            animation: bounce 2s ease-in-out infinite;
+        }
+        @keyframes bounce {
+            0%, 100% { transform: translateX(-50%) translateY(0); }
+            50% { transform: translateX(-50%) translateY(6px); }
+        }
+        .scroll-indicator .arrow { font-size: 20px; }
+
+        /* ===== Responsive ===== */
+        @media (max-width: 640px) {
+            .nav-links a:not(.btn-primary-nav) { display: none; }
+            #hero .container { flex-direction: column; }
+            .hero-visual { margin-top: 40px; }
+            .methods-grid { grid-template-columns: 1fr; }
+            .steps { grid-template-columns: 1fr; }
+            .philosophy-grid { grid-template-columns: 1fr; }
+        }
+
+        /* Footer dark bg */
+        .footer-wrap { background: #1A1410; }
+    </style>
+</head>
+<body>
+
+<!-- ===== Navigation ===== -->
+<nav id="navbar">
+    <div class="container">
+        <a href="#" class="nav-logo">
+            <div class="logo-icon">Σ</div>
+            苏格拉底伴学
+        </a>
+        <div class="nav-links">
+        </div>
+    </div>
+</nav>
+
+<!-- ===== Section 1: Hero ===== -->
+<section id="hero" class="section">
+    <div class="nav-deco"></div>
+    <div class="nav-deco-sm"></div>
+    <div class="nav-deco-xs"></div>
+    <div class="container">
+        <div>
+            <div class="hero-badge">AI 苏格拉底式教学</div>
+            <h1 class="hero-title">
+                不给答案<br>
+                <span class="highlight">帮你真正理解</span>
+            </h1>
+            <p class="hero-sub">
+                通过引导式提问，帮你发现知识漏洞、建立知识体系，<br>陪你找到属于自己的答案。
+            </p>
+            <div class="hero-actions">
+                <a href="learn.html" class="btn-primary">开始学习 <span style="font-size:1.3em;">→</span></a>
+                <button class="btn-secondary" onclick="scrollToMethods()">了解教学方法</button>
+            </div>
+            <div class="hero-features">
+                <span><span class="icon">💡</span>不给答案，只提问</span>
+                <span class="dot"></span>
+                <span><span class="icon">🌱</span>知识树实时追踪</span>
+                <span class="dot"></span>
+                <span><span class="icon">🧠</span>费曼学习法验证</span>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ===== Section 2: Methods ===== -->
+<section id="methods" class="section">
+    <div class="container">
+        <div style="text-align:center;">
+            <span class="section-badge">🎓 教学方法</span>
+            <h2 class="section-title">五大核心教学法</h2>
+            <p class="section-desc">
+                融合经典的启发式教学理念，针对中国初高中学生的学习特点量身定制。<br>
+                我们不教答案，我们教思考。
+            </p>
+        </div>
+        <div class="methods-grid">
+            <div class="method-card">
+                <div class="icon">❓</div>
+                <h3>苏格拉底式提问</h3>
+                <p>通过连续追问引导学生自己发现答案。不是"因为所以"，而是"你怎么想的？为什么？还有吗？"</p>
+                <div class="tags"><span>追问</span><span>启发</span><span>发现</span></div>
+            </div>
+            <div class="method-card">
+                <div class="icon">🧩</div>
+                <h3>第一性原理思考</h3>
+                <p>回到最基本的定义和原理，从公理出发重新推导。不依赖套路，培养真正的理解力。</p>
+                <div class="tags"><span>回归定义</span><span>本质</span><span>拆解</span></div>
+            </div>
+            <div class="method-card">
+                <div class="icon">🗣️</div>
+                <h3>费曼学习法</h3>
+                <p>要求你用自己的话解释概念。如果说不清楚，说明还没真懂。"假装给同学讲一遍"。</p>
+                <div class="tags"><span>输出</span><span>检验</span><span>简化</span></div>
+            </div>
+            <div class="method-card">
+                <div class="icon">📊</div>
+                <h3>形成性评估</h3>
+                <p>持续发现知识漏洞，诊断概念缺失、混淆、断裂等不同类型的问题，精准定位薄弱点。</p>
+                <div class="tags"><span>诊断</span><span>定位</span><span>追踪</span></div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ===== Section 3: How It Works ===== -->
+<section id="how-it-works" class="section">
+    <div class="container">
+        <div style="text-align:center;">
+            <span class="section-badge">🚀 学习流程</span>
+            <h2 class="section-title">三步实现深度学习</h2>
+            <p class="section-desc" style="margin:0 auto 48px;">
+                从发现问题到建立完整的知识网络，每一步都由 AI 助教陪伴引导。
+            </p>
+        </div>
+        <div class="steps">
+            <div class="step">
+                <div class="step-num">1</div>
+                <h3>📝 发一道题</h3>
+                <p>把不会做的题目、不理解的概念或复习章节发出来。AI助教不会直接给答案。</p>
+            </div>
+            <div class="step">
+                <div class="step-num">2</div>
+                <h3>🔍 查缺补漏</h3>
+                <p>助教通过层层追问发现你的知识漏洞——是概念缺失、混淆，还是不会应用？</p>
+            </div>
+            <div class="step">
+                <div class="step-num">3</div>
+                <h3>🌳 建立体系</h3>
+                <p>逐步构建学科知识树，将零散知识点连接成网，直到你能清晰地向别人解释。</p>
+            </div>
+        </div>
+        </div>
+    </div>
+</section>
+
+<!-- ===== Section 4: CTA + Philosophy ===== -->
+<section id="philosophy" class="section">
+    <div class="container">
+        <div class="philosophy-grid">
+            <div>
+                <span class="section-badge">💡 教学理念</span>
+                <h2 class="section-title">教是为了不教</h2>
+                <p class="section-desc" style="margin-bottom:28px;">
+                    我们的最终目标不是让你做对一道题，而是让你成为能够独立解决问题的人。
+                </p>
+                <ul class="philosophy-list">
+                    <li>
+                        <div class="check">✓</div>
+                        <div>
+                            <h4>发现知识漏洞</h4>
+                            <p>找到你真正卡在哪里——是概念缺失、公式不懂，还是不会运用</p>
+                        </div>
+                    </li>
+                    <li>
+                        <div class="check">✓</div>
+                        <div>
+                            <h4>理解概念本质</h4>
+                            <p>回到定义和基本原理，用第一性原理重新理解每个知识点</p>
+                        </div>
+                    </li>
+                    <li>
+                        <div class="check">✓</div>
+                        <div>
+                            <h4>建立知识网络</h4>
+                            <p>把孤立的知识点连接成树状体系，看到不同章节之间的联系</p>
+                        </div>
+                    </li>
+                    <li>
+                        <div class="check">✓</div>
+                        <div>
+                            <h4>能教别人才算会</h4>
+                            <p>用费曼学习法检验——如果不能用简单语言讲清楚，说明还没真懂</p>
+                        </div>
+                    </li>
+                    <li>
+                        <div class="check">✓</div>
+                        <div>
+                            <h4>独立解决问题</h4>
+                            <p>最终目标：在没有帮助的情况下，你能自己拆解、分析并解决新问题</p>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+            <div class="hero-visual" style="display:flex;justify-content:center;align-items:center;">
+                <div class="hero-visual-inner" style="max-width:540px;">
+                    <div class="visual-chat">
+                        <div class="msg avatar"><div class="msg-bubble">这道题考查的是什么知识点？</div></div>
+                        <div class="msg user"><div class="msg-bubble">呃…二次函数？</div></div>
+                        <div class="msg avatar"><div class="msg-bubble">很好！那我们先确认一下：什么是二次函数？你能举一个例子吗？</div></div>
+                        <div class="msg user"><div class="msg-bubble">y = x² + 2x + 1</div></div>
+                    </div>
+                    <div class="visual-question">
+                        <input type="text" placeholder="输入你的问题…" disabled>
+                        <button>→</button>
+                    </div>
+                    <div class="float-el float-el-1">
+                        <span class="icon">🔍</span>
+                        <div><div class="label">发现知识漏洞</div>苏格拉底式提问</div>
+                    </div>
+                    <div class="float-el float-el-2">
+                        <span class="icon">🌳</span>
+                        <div><div class="label">构建知识体系</div>可视化学习进度</div>
+                    </div>
+                    <div class="float-el float-el-3">
+                        <span class="icon">🎯</span>
+                        <div><div class="label">绝不直接给答案</div>启发式引导</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ===== Footer ===== -->
+<div class="footer-wrap">
+<footer>
+    <div class="container">
+        <p>苏格拉底伴学 · AI 驱动的启发式学习助手</p>
+        <span>无需下载，打开浏览器，开始提问</span>
+    </div>
+</footer>
+</div>
+
+<script>
+    const nav = document.getElementById('navbar');
+    window.addEventListener('scroll', () => nav.classList.toggle('scrolled', window.scrollY > 40));
+
+    function scrollToMethods() {
+        document.getElementById('methods').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.style.opacity = '1';
+                entry.target.style.transform = 'translateY(0)';
+            }
+        });
+    }, { threshold: 0.1 });
+    document.querySelectorAll('.method-card, .step, .philosophy-list li').forEach(el => {
+        el.style.opacity = '0';
+        el.style.transform = 'translateY(20px)';
+        el.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+        observer.observe(el);
+    });
+</script>
+</body>
+</html>
