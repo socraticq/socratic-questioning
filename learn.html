@@ -339,22 +339,25 @@
             animation: msgIn 0.35s ease; width: 100%; margin: 0 auto;
         }
         @keyframes msgIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-        .message.bot { align-self: flex-start; }
-        .message.user { align-self: flex-end; flex-direction: row-reverse; }
+        .message.bot { }
+        .message.user { justify-content: flex-end; }
         .message.user .msg-content { align-items: flex-end; }
-        .message.user .msg-bubble { text-align: left; }
         .message.user .msg-bubble { text-align: right; }
 
         .msg-avatar {
-            width: 32px; height: 32px; min-width: 32px;
-            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            width: 30px; height: 30px; min-width: 30px;
+            border-radius: 8px; display: flex; align-items: center; justify-content: center;
             font-size: 14px; margin-top: 4px; flex-shrink: 0;
         }
         .message.bot .msg-avatar {
             background: linear-gradient(135deg, var(--primary), var(--primary-dark));
             color: #fff;
         }
-        .message.user .msg-avatar { background: var(--bg); color: var(--text-secondary); }
+        .message.user .msg-avatar {
+            background: #fff; color: var(--primary);
+            border-radius: 50%; border: 1px solid var(--border);
+            font-weight: 700; font-size: 16px;
+        }
 
         .msg-content { display: flex; flex-direction: column; gap: 4px; max-width: 88%; }
         .msg-bubble {
@@ -503,6 +506,66 @@
         @keyframes toastIn { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes toastOut { from { opacity: 1; } to { opacity: 0; transform: translateY(-12px); } }
 
+        
+        /* ===== Right Drawer (Symbol Panel) ===== */
+        .symbol-overlay {
+            position: fixed; inset: 0; z-index: 95;
+            background: rgba(0,0,0,0.25);
+            opacity: 0; pointer-events: none;
+            transition: opacity var(--transition);
+        }
+        .symbol-overlay.open { opacity: 1; pointer-events: auto; }
+        .symbol-drawer {
+            position: fixed; right: 0; top: 0; bottom: 0; z-index: 100;
+            width: 360px; max-width: 85vw;
+            background: var(--card);
+            box-shadow: var(--shadow-lg);
+            transform: translateX(100%);
+            transition: transform var(--transition);
+            display: flex; flex-direction: column;
+        }
+        .symbol-drawer.open { transform: translateX(0); }
+        .symbol-drawer-header {
+            padding: 20px 20px 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .symbol-drawer-header h2 {
+            font-size: 18px; font-weight: 700;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .symbol-drawer-close {
+            width: 32px; height: 32px; border: none; background: var(--bg);
+            border-radius: 50%; cursor: pointer;
+            font-size: 16px; color: var(--text-secondary);
+            display: flex; align-items: center; justify-content: center;
+            transition: background 0.2s;
+        }
+        .symbol-drawer-close:hover { background: var(--border); }
+        .symbol-grid {
+            display: grid; grid-template-columns: repeat(4, 1fr);
+            gap: 8px; padding: 16px; overflow-y: auto; flex: 1;
+        }
+        .symbol-grid button {
+            padding: 8px 4px; border: 1px solid var(--border); background: var(--bg-warm);
+            border-radius: 8px; cursor: pointer; font-size: 16px; text-align: center;
+            color: var(--text); transition: all 0.15s;
+        }
+        .symbol-grid button:hover { border-color: var(--primary); background: var(--primary-light); color: var(--primary); }
+        .symbol-toggle {
+            padding: 4px 10px; border: 1px solid var(--border); background: var(--bg-warm);
+            border-radius: 8px; cursor: pointer; font-size: 16px; color: var(--text-secondary);
+            transition: all 0.2s; display: flex; align-items: center; gap: 4px;
+            margin-left: auto; flex-shrink: 0;
+        }
+        .symbol-toggle:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-light); }
+        .symbol-toggle.active { border-color: var(--primary); background: var(--primary-light); color: var(--primary); }
+        @media (max-width: 768px) {
+            .symbol-drawer { width: 100vw; max-width: 100vw; }
+        }
+
         /* ===== Responsive ===== */
         @media (max-width: 768px) {
             .drawer { width: 100vw; max-width: 100vw; }
@@ -619,7 +682,7 @@
                     <div class="brand-icon">Σ</div>
                     <div>
                         <div class="brand-text">苏格拉底伴学</div>
-                        <div class="brand-sub">不教答案 · 只教思考</div>
+                        <div class="brand-sub">不教答案 · 只教独立思考</div>
                     </div>
                 </div>
                 </a>
@@ -664,7 +727,20 @@
                     <option value="sjb">苏教版</option>
                 </select>
             </div>
+                    <button class="symbol-toggle" id="symbolToggle" onclick="toggleSymbolDrawer()" title="符号工具">∑ π</button>
         </div>
+
+    <!-- ===== Symbol Drawer Overlay ===== -->
+    <div class="symbol-overlay" id="symbolOverlay" onclick="closeSymbolDrawer()"></div>
+
+    <!-- ===== Right Drawer (Symbol Panel) ===== -->
+    <aside class="symbol-drawer" id="symbolDrawer">
+        <div class="symbol-drawer-header">
+            <h2 id="symbolDrawerTitle">📐 数学符号</h2>
+            <button class="symbol-drawer-close" onclick="closeSymbolDrawer()">✕</button>
+        </div>
+        <div class="symbol-grid" id="symbolGrid"></div>
+    </aside>
 
         <!-- Messages -->
         <div class="messages" id="messages">
@@ -757,6 +833,7 @@
         currentSubject: 'math',
         isProcessing: false,
         drawerOpen: false,
+        symbolOpen: false,
         messages: [],          // UI message data
         conversationHistory: [], // for API (role/content pairs)
         historyList: [],       // saved conversations [{id, subject, summary, count, ts, messages}]
@@ -786,37 +863,37 @@
             '函数到底是什么？用最简单的话解释',
             '勾股定理为什么成立？能从最基础推出来吗',
             '帮我理清一次函数和二次函数的区别'
-        ]},
+        ], symbols:['α','β','γ','δ','ε','θ','λ','π','Σ','√','∞','≠','≈','≡','≤','≥','±','×','÷','∠','△','□','⊥','∥','∫','∑','∏','∪','∩','∈','⊆','⊇','⇒','⇔','∀','∃','°','²','³','→','↔','∵','∴','∂','∘','▱']},
         physics: { name:'物理', icon:'⚛️', color:'var(--physics)', examples:[
             '帮我搞懂牛顿第一定律到底在说什么',
             '加速度和速度有什么区别？从定义出发',
             '为什么物体会下落？万有引力的本质是什么',
             '我想检验一下力学知识点掌握得怎么样'
-        ]},
+        ], symbols:['α','β','γ','θ','λ','π','Δ','∇','°','′','″','∞','≠','≈','≡','≤','≥','±','×','÷','→','∑','∂','∝','√','²','³','μ','Ω','ω','φ','ε','η','ρ','σ','τ','·']},
         chemistry:{ name:'化学', icon:'🧪', color:'var(--chemistry)', examples:[
             '帮我搞懂光合作用的本质是什么',
             '氧化还原反应怎么判断？从电子角度解释',
             '元素周期表是怎么排列的？规律是什么',
             '化学方程式配平的本质是什么'
-        ]},
+        ], symbols:['→','⇌','↑','↓','Δ','°','℃','·','×','±','≡','≈','≠','H2','β','γ','π','θ','λ','μ','Ω','ω','φ','ε','ρ','σ','²','³','H⁺','OH⁻','e⁻']},
         english:{ name:'英语', icon:'🇬🇧', color:'var(--english)', examples:[
             '现在完成时和过去时到底有什么不同',
             '定语从句到底在修饰什么？怎么判断',
             '被动语态什么时候用？和主动语态什么区别',
             '虚拟语气到底表达的是什么意思'
-        ]},
+        ], symbols:['·','ing']},
         chinese:{ name:'语文', icon:'📖', color:'var(--chinese)', examples:[
             '文言文实词怎么推断意思？有规律吗',
             '阅读理解中"主旨题"到底在问什么',
             '作文怎么构建逻辑框架？从审题开始',
             '古诗词鉴赏到底要鉴赏什么'
-        ]},
+        ], symbols:['，','。','？','！','、','；','：','「','」','『','』','《','》','——','……','·','—','～','●','○','△','□','→','◆','◇']},
         biology:{ name:'生物', icon:'🌿', color:'var(--biology)', examples:[
             '细胞膜的功能是什么？为什么叫"选择透过性"',
             'DNA和RNA到底有什么不同',
             '光合作用和呼吸作用的关系是什么',
             '生态系统中的能量流动遵循什么规律'
-        ]},
+        ], symbols:['→','⇌','↑','↓','°','℃','×','±','≈','≠','α','β','γ','δ','Δ','μ','Ω','ω','φ','ε','ρ','σ','τ','π','λ','²','³','ATP','NADPH','CO₂','O₂','H₂O','DNA','RNA','H⁺','OH⁻','e⁻']},
     };
 
     // Knowledge tree data for progress tracking
@@ -934,6 +1011,7 @@
             if (subject === STATE.currentSubject) return;
             STATE.currentSubject = subject;
             try { localStorage.setItem('socrates_subject', subject); } catch(e) {}
+            updateSymbolTitle();
             renderWelcomeExamples();
             showToast(`已切换到 ${SUBJECTS[subject].name} ${SUBJECTS[subject].icon}`);
             updateDrawerCounts();
@@ -1075,7 +1153,8 @@
 
         const avatar = document.createElement('div');
         avatar.className = 'msg-avatar';
-        avatar.textContent = role === 'bot' ? 'Σ' : '👤';
+        const userName = STATE.profile?.name || '';
+        avatar.textContent = role === 'bot' ? 'Σ' : (userName ? userName.charAt(0) : '👤');
 
         const content = document.createElement('div');
         content.className = 'msg-content';
@@ -1428,6 +1507,59 @@
     }
 
     // ======================================================================
+    
+    // ======================================================================
+    // 15. SYMBOL TOOL
+    // ======================================================================
+    function toggleSymbolDrawer() {
+        STATE.symbolOpen = !STATE.symbolOpen;
+        document.getElementById('symbolDrawer').classList.toggle('open', STATE.symbolOpen);
+        document.getElementById('symbolOverlay').classList.toggle('open', STATE.symbolOpen);
+        document.getElementById('symbolToggle').classList.toggle('active', STATE.symbolOpen);
+        if (STATE.symbolOpen) {
+            renderSymbols();
+            updateSymbolTitle();
+        }
+    }
+    function closeSymbolDrawer() {
+        STATE.symbolOpen = false;
+        document.getElementById('symbolDrawer').classList.remove('open');
+        document.getElementById('symbolOverlay').classList.remove('open');
+        document.getElementById('symbolToggle').classList.remove('active');
+    }
+    function updateSymbolTitle() {
+        const subj = SUBJECTS[STATE.currentSubject];
+        document.getElementById('symbolDrawerTitle').textContent = subj.icon + ' ' + subj.name + '符号';
+    }
+    
+    // Click delegation for symbol grid
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('[data-sym]');
+        if (btn) insertSymbol(btn.getAttribute('data-sym'));
+    });
+    function renderSymbols() {
+        const subj = SUBJECTS[STATE.currentSubject];
+        const symbols = subj.symbols || [];
+        const grid = document.getElementById('symbolGrid');
+        let html = '';
+        for (let s of symbols) {
+            html += '<button class="sym-btn" data-sym="' + s + '">' + s + '</button>';
+        }
+        grid.innerHTML = html;
+    }
+
+    function insertSymbol(symbol) {
+        const input = document.getElementById('chatInput');
+        const start = input.selectionStart;
+        const val = input.value;
+        input.value = val.slice(0, start) + symbol + val.slice(input.selectionEnd);
+        input.focus();
+        input.selectionStart = input.selectionEnd = start + symbol.length;
+        autoResize(input);
+        closeSymbolDrawer();
+    }
+
+    // ======================================================================
     // 12. KEYBOARD SHORTCUTS
     // ======================================================================
     document.addEventListener('keydown', (e) => {
@@ -1507,7 +1639,8 @@
                 div.className = `message ${role}`;
                 const avatar = document.createElement('div');
                 avatar.className = 'msg-avatar';
-                avatar.textContent = role === 'bot' ? 'Σ' : '👤';
+                const userName = STATE.profile?.name || '';
+                avatar.textContent = role === 'bot' ? 'Σ' : (userName ? userName.charAt(0) : '👤');
                 const content = document.createElement('div');
                 content.className = 'msg-content';
                 const bubble = document.createElement('div');
@@ -1553,7 +1686,7 @@
         // 聚焦姓名输入框
         setTimeout(() => document.getElementById('onboardName').focus(), 300);
     }
-    console.log('🧠 苏格拉底伴学已加载  |  Ctrl+B 打开学习中心');
+console.log('🧠 苏格拉底伴学已加载  |  Ctrl+B 打开学习中心');
 </script>
 </body>
 </html>
