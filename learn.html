@@ -92,8 +92,8 @@
             padding: 0 12px; gap: 4px;
         }
         .drawer-tab {
-            flex: 1; padding: 12px 8px; border: none; background: transparent;
-            font-size: 13px; font-weight: 600; color: var(--text-light);
+            flex: 1 1 auto; padding: 12px 6px; border: none; background: transparent;
+            font-size: 12px; font-weight: 600; color: var(--text-light);
             cursor: pointer; position: relative; transition: color 0.2s;
             white-space: nowrap;
         }
@@ -115,6 +115,7 @@
         .drawer-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
         .drawer-pane { display: none; }
         .drawer-pane.active { display: block; }
+        #pane-progress { position: relative; }
 
         /* History list */
         .history-item {
@@ -581,6 +582,15 @@
             background: var(--card); color: var(--text); outline: none;
             min-width: 0;
         }
+        .km-detail {
+            position: absolute; left: 8px; right: 8px; bottom: 8px;
+            background: var(--card); border-radius: 14px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.12); padding: 16px;
+            z-index: 5; border: 1px solid var(--border);
+        }
+        .km-detail-header {
+            display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;
+        }
 
         /* ===== Responsive ===== */
         @media (max-width: 768px) {
@@ -604,6 +614,28 @@
             backdrop-filter: blur(8px);
             display: none; align-items: center; justify-content: center;
             padding: 24px;
+        }
+        .map-overlay {
+            position: fixed; inset: 0; z-index: 250;
+            background: var(--bg); display: none; flex-direction: column;
+            animation: fadeUp 0.3s ease;
+        }
+        .map-overlay.open { display: flex; }
+        .map-overlay-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 16px 24px; background: var(--card);
+            border-bottom: 1px solid var(--border); flex-shrink: 0;
+        }
+        .map-overlay-header h2 { font-size: 18px; font-weight: 700; background: linear-gradient(135deg, var(--primary), var(--primary-dark)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .map-overlay-close {
+            width: 32px; height: 32px; border: none; background: var(--bg);
+            border-radius: 50%; cursor: pointer; font-size: 16px; color: var(--text-secondary);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .map-overlay-close:hover { background: var(--border); }
+        .map-overlay-content {
+            flex: 1; overflow-y: auto; padding: 16px 20px;
+            position: relative;
         }
         .onboard-card {
             background: var(--card); border-radius: 24px;
@@ -679,11 +711,11 @@
             <button class="drawer-tab" data-pane="wrongbook" onclick="switchDrawerTab('wrongbook')">
                 📕 错题本 <span class="count" id="wrongCount">0</span>
             </button>
-            <button class="drawer-tab" data-pane="progress" onclick="switchDrawerTab('progress')">
+            <button class="drawer-tab" data-pane="progress" onclick="openMapOverlay()">
                 🗺️ 知识地图
             </button>
             <button class="drawer-tab" data-pane="discovery" onclick="switchDrawerTab('discovery')">
-                💡 发现 <span class="count" id="discoveryCount">0</span>
+                💡 我的灵光 <span class="count" id="discoveryCount">0</span>
             </button>
         </div>
         <div class="drawer-content">
@@ -696,8 +728,8 @@
                 <div class="wrong-filter" id="wrongFilter"></div>
                 <div id="wrongList"></div>
             </div>
-            <!-- Progress -->
-            <div class="drawer-pane" id="pane-progress">
+            <!-- Progress (inline mini view hidden, full map in overlay) -->
+            <div class="drawer-pane" id="pane-progress" style="display:none;">
                 <div id="progressContent"></div>
             </div>
             <!-- Discovery -->
@@ -809,6 +841,15 @@
 
     </main>
 
+    <!-- ===== Map Overlay ===== -->
+    <div class="map-overlay" id="mapOverlay">
+        <div class="map-overlay-header">
+            <h2>🗺️ 知识地图</h2>
+            <button class="map-overlay-close" onclick="closeMapOverlay()">✕</button>
+        </div>
+        <div class="map-overlay-content" id="mapContent"></div>
+    </div>
+
     <!-- ===== Onboarding Overlay ===== -->
     <div class="onboard-overlay" id="onboardOverlay">
         <div class="onboard-card">
@@ -888,6 +929,7 @@
         wrongBook: [],         // [{id, subject, question, answer, ts}]
         discoveries: [],       // [{id, date, content, subject, edited}]
         knowledgeMap: [],      // [{id, name, status:'触及'|'探索中'|'可解释'|'可教', connections:[], subject}]
+        restoringHistoryId: null, // 如果当前对话是从历史恢复的，这里存对应 history id
         profile: null,         // { name, grade, textbook } — null 表示首次使用
     };
     // Load from localStorage
@@ -950,8 +992,14 @@
         ], symbols:['→','⇌','↑','↓','°','℃','×','±','≈','≠','α','β','γ','δ','Δ','μ','Ω','ω','φ','ε','ρ','σ','τ','π','λ','²','³','ATP','NADPH','CO₂','O₂','H₂O','DNA','RNA','H⁺','OH⁻','e⁻']},
     };
 
+
+    // Seed anchor nodes for knowledge map (subject -> anchor names)
     // Knowledge map — dynamically built from conversations
-    // Each node: { id, name, status:'触及'|'探索中'|'可解释'|'可教', connections:[name], subject }
+    // Pan/zoom state for knowledge map
+    var mapPanX = 0, mapPanY = 0, mapScale = 1;
+    var mapDragging = false, mapDragStartX = 0, mapDragStartY = 0, mapPanStartX = 0, mapPanStartY = 0;
+
+    // Each node: { id, name, status:'触及'|'探索中'|'可解释'|'可教', onnections:[name], subject }
 
     // ======================================================================
     // 3. SYSTEM PROMPT
@@ -1071,6 +1119,20 @@
 
 关键心态：绕路不是失败，是知识地图上的另一条路径。从远处看清楚后，近处的迷雾自然就散了。
 
+# 成就感加速器——让用户在第一次对话就获得"这有意思"的体验
+
+## 加速1：首次对话的"历史高光"开场
+当学生是第一次进入学习（或者刚切换学科/年级后准备发问），你的第一条回复不要直接提问，而是**先讲一段与该学科或该年级内容相关的有趣历史/事件**，然后再问想讨论什么。
+示例（八年级数学）：
+"欢迎来到八年级数学的世界！你知道吗？你即将学习的勾股定理，在 4000 年前的古巴比伦就已经有人在用了——他们把 3、4、5 作为直角三角形的边长来丈量土地。而「勾股」这两个字是中国古代的命名。「勾」是直角三角形中较短的直角边，「股」是较长的边。现在你想从哪个主题开始探索？"
+注意：故事要简短（2-3句话），要有"惊叹感"或"原来如此"的感觉。不要编造，要有事实依据。如果一时想不到合适的故事，就正常开场。
+
+## 加速2：老用户的"就在你身边"开场
+当学生是再次回来使用时（已有 profile），直接问想讨论什么。学生说出话题后，**先讲一个与该话题相关的日常应用或身边实例**，让学生感觉"这东西就在我身边"，然后再开始苏格拉底式追问。
+示例（用户说"我想了解加速度"）：
+"好话题！你坐高铁时，刚启动那一瞬间身体往后靠的感觉，就是加速度在作用。加速度不是速度本身，而是速度变化的快慢。来，我们先确认一下——你觉得速度和加速度有什么区别？"
+核心逻辑：在正式开始追问之前，先给学生一个"这跟我的生活有关"的锚点。有了这个锚点，学生就不会觉得概念是悬在空中的。
+
 重要：每次回答要简短一些（不超过200字），避免一次性给出太多信息。一次只问1-2个问题，让学生有空间思考和回答。
 
 # 学习完成后的路径选择
@@ -1175,6 +1237,7 @@ C：挑战一个超纲问题，看看你能走多远
             }
 
             updateSymbolTitle();
+            reanalyzeKnowledgeMap();
             showToast(`已切换到 ${SUBJECTS[newSubject].name} ${SUBJECTS[newSubject].icon}`);
             updateDrawerCounts();
 
@@ -1315,6 +1378,7 @@ C：挑战一个超纲问题，看看你能走多远
             }
             try { localStorage.setItem('socrates_history', JSON.stringify(STATE.conversationHistory)); } catch(e) {}
             addMessage(reply, 'bot');
+            reanalyzeKnowledgeMap();
         } catch (err) {
             addMessage('⚠️ ' + err.message, 'bot');
         } finally {
@@ -1404,24 +1468,71 @@ C：挑战一个超纲问题，看看你能走多远
                 });
                 try { localStorage.setItem('socrates_discoveries', JSON.stringify(STATE.discoveries)); } catch(e) {}
                 updateDrawerCounts();
+
+                // Auto-add knowledge node from discovery if it mentions a concept
+                const subj = SUBJECTS[STATE.currentSubject];
+                if (subj) {
+                    // Use the first 8 chars of discovery as a candidate node name
+                    let candidate = discoveryContent;
+                    // Remove common prefixes
+                    candidate = candidate.replace(/^我(?:刚刚|自己)?(?:发现|总结|推出|意识到)(?:了)?[：:]?\s*/, '');
+                    // Take first ~10 chars as the core concept
+                    let nodeName = candidate.slice(0, 10).replace(/[,，。、！？\s].*$/, '').trim();
+                    if (nodeName.length >= 2 && nodeName.length <= 15) {
+                        if (!STATE.knowledgeMap.find(n => n.name === nodeName && n.subject === STATE.currentSubject)) {
+                            STATE.knowledgeMap.push({
+                                id: Date.now() + Math.random(),
+                                name: nodeName,
+                                status: '探索中',
+                                connections: [],
+                                subject: STATE.currentSubject,
+                            });
+                            try { localStorage.setItem('socrates_knowledge_map', JSON.stringify(STATE.knowledgeMap)); } catch(e) {}
+                        } else {
+                            const existing = STATE.knowledgeMap.find(n => n.name === nodeName && n.subject === STATE.currentSubject);
+                            if (existing && existing.status === '触及') {
+                                existing.status = '探索中';
+                                try { localStorage.setItem('socrates_knowledge_map', JSON.stringify(STATE.knowledgeMap)); } catch(e) {}
+                            }
+                        }
+                    }
+                }
             }
 
-            // Parse knowledge node markers
-            const nodeRegex = /⟡\s*知识节点[：:]\s*(.+?)\s*\|?\s*连接[：:]\s*(.+?)\s*⟡/g;
+            // Parse knowledge node markers (support both with and without connections)
+            const nodeRegex = /⟡\s*知识节点[：:]\s*(.+?)\s*(?:\|\s*连接[：:]\s*(.+?))?\s*⟡/g;
             let nodeMatch;
             while ((nodeMatch = nodeRegex.exec(text)) !== null) {
                 const nodeName = nodeMatch[1].trim();
-                const connections = nodeMatch[2].split(/[,，、]/).map(s => s.trim()).filter(Boolean);
+                const connections = nodeMatch[2] ? nodeMatch[2].split(/[,，、]/).map(s => s.trim()).filter(Boolean) : [];
                 // Add or update node in knowledge map
                 const existing = STATE.knowledgeMap.find(n => n.name === nodeName && n.subject === STATE.currentSubject);
                 if (!existing) {
-                    STATE.knowledgeMap.push({
-                        id: Date.now() + Math.random(),
-                        name: nodeName,
-                        status: '触及',
-                        connections: connections.filter(c => c !== nodeName),
-                        subject: STATE.currentSubject,
+                    // Covered check: skip only if new name is substring of existing (less specific)
+                    var covered = STATE.knowledgeMap.some(function(n) {
+                        return n.subject === STATE.currentSubject && n.name !== nodeName && n.name.indexOf(nodeName) >= 0;
                     });
+                    if (!covered) {
+                        STATE.knowledgeMap.push({
+                            id: Date.now() + Math.random(),
+                            name: nodeName,
+                            status: '触及',
+                            connections: connections.filter(c => c !== nodeName),
+                            subject: STATE.currentSubject,
+                        });
+                    } else {
+                        // Still merge connections to the containing node
+                        var parentNode = STATE.knowledgeMap.find(function(n) {
+                            return n.subject === STATE.currentSubject && n.name !== nodeName && n.name.indexOf(nodeName) >= 0;
+                        });
+                        if (parentNode) {
+                            for (const c of connections) {
+                                if (c !== parentNode.name && !parentNode.connections.includes(c)) {
+                                    parentNode.connections.push(c);
+                                }
+                            }
+                        }
+                    }
                 } else {
                     // Merge new connections
                     for (const c of connections) {
@@ -1434,19 +1545,37 @@ C：挑战一个超纲问题，看看你能走多远
                 for (const c of connections) {
                     if (c === nodeName) continue;
                     if (!STATE.knowledgeMap.find(n => n.name === c && n.subject === STATE.currentSubject)) {
-                        STATE.knowledgeMap.push({
-                            id: Date.now() + Math.random(),
-                            name: c,
-                            status: '触及',
-                            connections: [nodeName],
-                            subject: STATE.currentSubject,
+                        var covered = STATE.knowledgeMap.some(function(n) {
+                            return n.subject === STATE.currentSubject && n.name !== c && n.name.indexOf(c) >= 0;
                         });
+                        if (!covered) {
+                            STATE.knowledgeMap.push({
+                                id: Date.now() + Math.random(),
+                                name: c,
+                                status: '触及',
+                                connections: [nodeName],
+                                subject: STATE.currentSubject,
+                            });
+                        }
                     }
                 }
                 try { localStorage.setItem('socrates_knowledge_map', JSON.stringify(STATE.knowledgeMap)); } catch(e) {}
             }
 
-            // Parse status markers
+            // Auto-connect nodes with overlapping names
+            const subjNodes = STATE.knowledgeMap.filter(n => n.subject === STATE.currentSubject && !n.anchor);
+            for (let ni = 0; ni < subjNodes.length; ni++) {
+                for (let nj = ni + 1; nj < subjNodes.length; nj++) {
+                    const na = subjNodes[ni], nb = subjNodes[nj];
+                    if (na.name.indexOf(nb.name) >= 0 || nb.name.indexOf(na.name) >= 0) {
+                        if (na.connections.indexOf(nb.name) < 0) na.connections.push(nb.name);
+                        if (nb.connections.indexOf(na.name) < 0) nb.connections.push(na.name);
+                    }
+                }
+            }
+            try { localStorage.setItem('socrates_knowledge_map', JSON.stringify(STATE.knowledgeMap)); } catch(e) {}
+
+            // Parse status markers (exact format)
             const statusRegex = /⟡\s*状态[：:]\s*(.+?)\s*→\s*(.+?)\s*⟡/g;
             let statusMatch;
             while ((statusMatch = statusRegex.exec(text)) !== null) {
@@ -1461,7 +1590,199 @@ C：挑战一个超纲问题，看看你能走多远
                     }
                 }
             }
+
+            // Fallback: detect status from natural language
+            const currentNodes = STATE.knowledgeMap.filter(n => n.subject === STATE.currentSubject && !n.anchor);
+
+            // 可教: AI confirms student can teach others
+            if (/可以教(别人|给同学)|最高等级|可教|你做到了|能教别人/.test(text)) {
+                const lastNode = currentNodes[currentNodes.length - 1];
+                if (lastNode && lastNode.status !== '可教') {
+                    lastNode.status = '可教';
+                    try { localStorage.setItem('socrates_knowledge_map', JSON.stringify(STATE.knowledgeMap)); } catch(e) {}
+                }
+            }
+            // 可解释: AI confirms student explained correctly (after Feynman check)
+            else if (/讲得很清楚|你讲得[对好]|完全正确|就是这个意思|就是这个道理|你的理解是对的|你现在可以教别人/.test(text)) {
+                // Find the most recent node that's at '探索中' and promote to '可解释'
+                for (let i = currentNodes.length - 1; i >= 0; i--) {
+                    if (currentNodes[i].status === '探索中') {
+                        currentNodes[i].status = '可解释';
+                        try { localStorage.setItem('socrates_knowledge_map', JSON.stringify(STATE.knowledgeMap)); } catch(e) {}
+                        break;
+                    }
+                }
+            }
+            // AI asks Feynman check → 探索中
+            else if (/你能(自己的话|用自己的话)|费曼|假装你同桌|给ta讲一遍/.test(text)) {
+                for (const n of currentNodes) {
+                    if (n.status === '触及') {
+                        n.status = '探索中';
+                        try { localStorage.setItem('socrates_knowledge_map', JSON.stringify(STATE.knowledgeMap)); } catch(e) {}
+                        break;
+                    }
+                }
+            }
         }
+    }
+
+    
+    function reanalyzeKnowledgeMap() {
+        const subj = STATE.currentSubject;
+        var msgs = [];
+        // Scan current conversation
+        if (STATE.conversationHistory.length > 0) {
+            msgs = STATE.conversationHistory.filter(function(m) { return m.role === 'assistant'; }).map(function(m) { return m.content; });
+        }
+        // Also scan all saved history
+        for (var hi = 0; hi < STATE.historyList.length; hi++) {
+            var entry = STATE.historyList[hi];
+            if (entry.subject === subj && entry.messages) {
+                for (var mi = 0; mi < entry.messages.length; mi++) {
+                    if (entry.messages[mi].role === 'assistant') {
+                        msgs.push(entry.messages[mi].content);
+                    }
+                }
+            }
+        }
+        if (msgs.length === 0) return;
+
+        // Math topic keywords for auto-creation
+        var mathKeywords = ['一次函数','二次函数','反比例函数','三角函数','勾股定理','一元二次方程',
+            '二元一次方程','不等式','平行线','全等三角形','相似三角形','圆周角','圆心角','切线',
+            '平方根','立方根','无理数','有理数','因式分解','配方法','判别式','韦达定理',
+            '方差','极差','中位数','众数','平均数','抛物线','根与系数'];
+
+        for (var ti = 0; ti < msgs.length; ti++) {
+            var text = msgs[ti];
+
+            // Extract topic keywords from text (for conversations without markers)
+            var matchedKws = [];
+            for (var ki = 0; ki < mathKeywords.length; ki++) {
+                var kw = mathKeywords[ki];
+                if (text.indexOf(kw) >= 0) {
+                    // Covered check: skip only if kw is substring of existing (less specific)
+                    var covered = STATE.knowledgeMap.some(function(n) {
+                        return n.subject === subj && n.name !== kw && n.name.indexOf(kw) >= 0;
+                    });
+                    if (!covered) {
+                        if (!STATE.knowledgeMap.find(function(n) { return n.name === kw && n.subject === subj; })) {
+                            STATE.knowledgeMap.push({
+                                id: Date.now() + Math.random(),
+                                name: kw,
+                                status: '触及',
+                                connections: [],
+                                subject: subj,
+                            });
+                        }
+                    }
+                    matchedKws.push(kw);
+                }
+            }
+            // Auto-connect keywords found in same sentence
+            var allNodes = STATE.knowledgeMap.filter(function(n) { return n.subject === subj; });
+            for (var mi = 0; mi < matchedKws.length; mi++) {
+                for (var mj = mi + 1; mj < matchedKws.length; mj++) {
+                    var a = matchedKws[mi], b = matchedKws[mj];
+                    var nodeA = allNodes.find(function(n) { return n.name === a; });
+                    var nodeB = allNodes.find(function(n) { return n.name === b; });
+                    if (nodeA && nodeB) {
+                        if (nodeA.connections.indexOf(b) < 0) nodeA.connections.push(b);
+                        if (nodeB.connections.indexOf(a) < 0) nodeB.connections.push(a);
+                    }
+                }
+            }
+
+            // Parse node markers
+            var nodeRegex = /⟡\s*知识节点[：:]\s*(.+?)\s*(?:|\s*连接[：:]\s*(.+?))?\s*⟡/g;
+            var m;
+            while ((m = nodeRegex.exec(text)) !== null) {
+                var nodeName = m[1].trim();
+                if (!STATE.knowledgeMap.find(function(n) { return n.name === nodeName && n.subject === subj; })) {
+                    STATE.knowledgeMap.push({
+                        id: Date.now() + Math.random(),
+                        name: nodeName,
+                        status: '触及',
+                        connections: m[2] ? m[2].split(/[,，、]/).map(function(s) { return s.trim(); }).filter(Boolean) : [],
+                        subject: subj,
+                    });
+                }
+            }
+            // Parse status markers
+            var statusRegex = /⟡\s*状态[：:]\s*(.+?)\s*→\s*(.+?)\s*⟡/g;
+            while ((m = statusRegex.exec(text)) !== null) {
+                var nodeName = m[1].trim();
+                var newStatus = m[2].trim();
+                var node = STATE.knowledgeMap.find(function(n) { return n.name === nodeName && n.subject === subj; });
+                var valid = ['触及','探索中','可解释','可教'];
+                if (node && valid.indexOf(newStatus) >= 0) {
+                    node.status = newStatus;
+                }
+            }
+            // Fallback: skip anchor nodes!
+            var nonAnchor = STATE.knowledgeMap.filter(function(n) { return n.subject === subj && !n.anchor; });
+            if (/可以教(别人|给同学)|最高等级|可教|能教别人/.test(text) && nonAnchor.length > 0) {
+                var last = nonAnchor[nonAnchor.length - 1];
+                if (last && last.status !== '可教') last.status = '可教';
+            }
+            if (/讲得很清楚|你讲得[对好]|完全正确|这个意思|你的理解是对的|你现在可以教别人/.test(text)) {
+                for (var ii = nonAnchor.length - 1; ii >= 0; ii--) {
+                    if (nonAnchor[ii].status === '探索中') { nonAnchor[ii].status = '可解释'; break; }
+                }
+            }
+            if (/自己发现|自己推导|总结出/.test(text)) {
+                for (var ii = nonAnchor.length - 1; ii >= 0; ii--) {
+                    if (nonAnchor[ii].status === '触及') { nonAnchor[ii].status = '探索中'; break; }
+                }
+            }
+        }
+        // Merge overlapping nodes — three passes
+        var statusRank = {'触及':0,'探索中':1,'可解释':2,'可教':3};
+        var merged = true;
+        while (merged) {
+            merged = false;
+            var mergeNodes = STATE.knowledgeMap.filter(function(n) { return n.subject === subj && !n.anchor; });
+            for (var ni = 0; ni < mergeNodes.length; ni++) {
+                for (var nj = ni + 1; nj < mergeNodes.length; nj++) {
+                    var a = mergeNodes[ni], b = mergeNodes[nj];
+                    if (a.name === b.name) continue;
+                    // Pass 1: direct name containment
+                    var shouldMerge = a.name.indexOf(b.name) >= 0 || b.name.indexOf(a.name) >= 0;
+                    // Pass 2: strip meta-suffixes and compare again
+                    // (e.g. "二次函数定义" vs "二次函数本质" → strip "定义"/"本质" → "二次函数")
+                    var metaSuffixes = ['定义','本质','含义','特征','性质','概念','意义','定理','法则','公式','性质','图像','单调性','对称性','周期性'];
+                    if (!shouldMerge) {
+                        var aStripped = a.name, bStripped = b.name;
+                        for (var si = 0; si < metaSuffixes.length; si++) {
+                            var suf = metaSuffixes[si];
+                            if (aStripped.indexOf(suf) >= 0) aStripped = aStripped.replace(suf, '');
+                            if (bStripped.indexOf(suf) >= 0) bStripped = bStripped.replace(suf, '');
+                        }
+                        if (aStripped.length >= 2 && aStripped === bStripped) shouldMerge = true;
+                    }
+                    if (!shouldMerge) continue;
+                    var parent = a.name.length >= b.name.length ? a : b;
+                    var child = a.name.length >= b.name.length ? b : a;
+                    for (var ci = 0; ci < child.connections.length; ci++) {
+                        if (child.connections[ci] !== parent.name && parent.connections.indexOf(child.connections[ci]) < 0) {
+                            parent.connections.push(child.connections[ci]);
+                        }
+                    }
+                    if (statusRank[child.status] > (statusRank[parent.status] || 0)) {
+                        parent.status = child.status;
+                    }
+                    STATE.knowledgeMap = STATE.knowledgeMap.filter(function(n) { return n !== child; });
+                    for (var ri = 0; ri < STATE.knowledgeMap.length; ri++) {
+                        var idx = STATE.knowledgeMap[ri].connections.indexOf(child.name);
+                        if (idx >= 0) STATE.knowledgeMap[ri].connections.splice(idx, 1);
+                    }
+                    merged = true;
+                    break;
+                }
+                if (merged) break;
+            }
+        }
+        try { localStorage.setItem('socrates_knowledge_map', JSON.stringify(STATE.knowledgeMap)); } catch(e) {}
     }
 
     function clearChat() {
@@ -1498,7 +1819,6 @@ C：挑战一个超纲问题，看看你能走多远
         document.getElementById('drawerOverlay').classList.add('open');
         renderHistoryList();
         renderWrongList();
-        renderProgress();
         renderDiscoveryList();
         updateDrawerCounts();
     }
@@ -1513,7 +1833,6 @@ C：挑战一个超纲问题，看看你能走多远
         document.querySelectorAll('.drawer-pane').forEach(p => p.classList.toggle('active', p.id === `pane-${tab}`));
         if (tab === 'history') renderHistoryList();
         if (tab === 'wrongbook') renderWrongList();
-        if (tab === 'progress') renderProgress();
         if (tab === 'discovery') renderDiscoveryList();
     }
 
@@ -1525,10 +1844,27 @@ C：挑战一个超纲问题，看看你能走多远
         const summary = firstUserMsg.content.slice(0, 40) + (firstUserMsg.content.length > 40 ? '…' : '');
         const now = new Date();
         const dateStr = now.getFullYear() + '年' + (now.getMonth()+1) + '月' + now.getDate() + '日';
-        // Extract topic from first user message (first ~12 chars, remove common filler)
         let topic = firstUserMsg.content.replace(/^我(想|要).{0,4}(理解|搞懂|弄懂|知道|检验|看看|复习)/, '').trim();
         if (!topic || topic.length < 2) topic = summary;
         if (topic.length > 20) topic = topic.slice(0, 18) + '…';
+
+        // Check if this conversation is a continuation of a restored history entry
+        if (STATE.restoringHistoryId) {
+            const existing = STATE.historyList.find(h => h.id === STATE.restoringHistoryId);
+            if (existing) {
+                existing.count = Math.ceil(STATE.conversationHistory.length / 2);
+                existing.ts = Date.now();
+                existing.messages = JSON.parse(JSON.stringify(STATE.conversationHistory));
+                existing.summary = summary;
+                existing.title = dateStr + '-' + topic;
+                existing.subject = STATE.currentSubject;
+                STATE.restoringHistoryId = null;
+                try { localStorage.setItem('socrates_history_list', JSON.stringify(STATE.historyList)); } catch(e) {}
+                return;
+            }
+            STATE.restoringHistoryId = null;
+        }
+
         const entry = {
             id: Date.now(),
             subject: STATE.currentSubject,
@@ -1539,7 +1875,6 @@ C：挑战一个超纲问题，看看你能走多远
             messages: JSON.parse(JSON.stringify(STATE.conversationHistory)),
         };
         STATE.historyList.unshift(entry);
-        if (STATE.historyList.length > 50) STATE.historyList = STATE.historyList.slice(0, 50);
         try { localStorage.setItem('socrates_history_list', JSON.stringify(STATE.historyList)); } catch(e) {}
     }
 
@@ -1612,11 +1947,13 @@ C：挑战一个超纲问题，看看你能走多远
         if (STATE.conversationHistory.length > 0) {
             saveCurrentToHistory();
         }
+        STATE.restoringHistoryId = id;
         STATE.conversationHistory = JSON.parse(JSON.stringify(entry.messages));
         try { localStorage.setItem('socrates_history', JSON.stringify(STATE.conversationHistory)); } catch(e) {}
         // Set subject
         document.getElementById('selSubject').value = entry.subject;
         STATE.currentSubject = entry.subject;
+        reanalyzeKnowledgeMap();
         // Rebuild UI
         document.getElementById('welcomeCard').style.display = 'none';
         document.getElementById('messages').querySelectorAll('.message').forEach(el => el.remove());
@@ -1738,69 +2075,282 @@ C：挑战一个超纲问题，看看你能走多远
     }
 
     // ---- Progress ----
-    function renderProgress() {
-        const container = document.getElementById('progressContent');
-        const subj = SUBJECTS[STATE.currentSubject];
-        const nodes = STATE.knowledgeMap.filter(n => n.subject === STATE.currentSubject);
 
+    function renderProgress() {
+        const container = document.getElementById('mapContent');
+        const subj = SUBJECTS[STATE.currentSubject];
+
+        const nodes = STATE.knowledgeMap.filter(n => n.subject === STATE.currentSubject && !n.anchor);
         if (nodes.length === 0) {
-            container.innerHTML = `<div class="history-empty"><div class="icon">🗺️</div>知识地图还是空的<br>开始对话后，AI 会自动记录你探索过的知识点<br>并逐渐连成你的个人知识网络</div>`;
+            container.innerHTML = '<div class="history-empty"><div class="icon">🗺️</div>知识地图还是空的<br>开始对话后，AI 会自动记录你探索过的知识点<br>并逐渐连成你的个人知识网络</div>';
             return;
         }
 
-        // Count by status
-        const statusCounts = { '触及': 0, '探索中': 0, '可解释': 0, '可教': 0 };
-        for (const n of nodes) statusCounts[n.status] = (statusCounts[n.status] || 0) + 1;
-
-        const statusColors = { '触及': '#B2BEC3', '探索中': '#E07D30', '可解释': '#27AE60', '可教': '#4A90D9' };
-
-        // Build simple connections visualization
-        let connHtml = '';
+        // Build edges list
+        const edges = [];
         for (const n of nodes) {
-            if (n.connections && n.connections.length > 0) {
-                for (const conn of n.connections) {
-                    const target = nodes.find(o => o.name === conn);
-                    if (target) {
-                        connHtml += `<span style="display:inline-block;font-size:11px;color:var(--text-light);padding:2px 0;">${n.name} ↔ ${conn}</span>`;
-                    }
+            for (const c of (n.connections || [])) {
+                if (nodes.find(o => o.name === c)) {
+                    edges.push({source: n.name, target: c});
                 }
             }
         }
 
-        const nodeCards = nodes.map(n => {
+        // Status colors
+        const statusColors = {'触及':'#B2BEC3','探索中':'#4A90D9','可解释':'#27AE60','可教':'#FFD700'};
+        const statusLabels = {'触及':'🔍 触及','探索中':'🔵 探索中','可解释':'🟢 可解释','可教':'⭐ 会教'};
+
+        const W = container.clientWidth || 340;
+        const H = Math.max(300, window.innerHeight - 180);
+        const r = 10; // node radius
+
+        // Initialize positions (if not already set)
+        for (let i = 0; i < nodes.length; i++) {
+            if (!nodes[i].fx) {
+                const angle = (2 * Math.PI * i) / nodes.length;
+                const radius = Math.min(W, H) * 0.3;
+                nodes[i].fx = W/2 + Math.cos(angle) * radius;
+                nodes[i].fy = H/2 + Math.sin(angle) * radius;
+                nodes[i].vx = 0;
+                nodes[i].vy = 0;
+            }
+        }
+
+        // Simple force simulation (50 iterations)
+        for (let iter = 0; iter < 50; iter++) {
+            // Repulsion between all pairs
+            for (let a of nodes) {
+                for (let b of nodes) {
+                    if (a === b) continue;
+                    let dx = b.fx - a.fx, dy = b.fy - a.fy;
+                    let dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                    let force = 8000 / (dist * dist);
+                    a.vx -= (dx / dist) * force;
+                    a.vy -= (dy / dist) * force;
+                }
+            }
+            // Attraction along edges
+            for (const e of edges) {
+                let a = nodes.find(n => n.name === e.source);
+                let b = nodes.find(n => n.name === e.target);
+                if (!a || !b) continue;
+                let dx = b.fx - a.fx, dy = b.fy - a.fy;
+                let dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                let force = (dist - 120) * 0.008;
+                a.vx += (dx / dist) * force;
+                a.vy += (dy / dist) * force;
+                b.vx -= (dx / dist) * force;
+                b.vy -= (dy / dist) * force;
+            }
+            // Center gravity
+            for (let n of nodes) {
+                n.vx += (W/2 - n.fx) * 0.002;
+                n.vy += (H/2 - n.fy) * 0.002;
+            }
+            // Apply velocity with damping
+            for (let n of nodes) {
+                n.vx *= 0.85; n.vy *= 0.85;
+                const maxV = 15;
+                if (Math.abs(n.vx) > maxV) n.vx = Math.sign(n.vx) * maxV;
+                if (Math.abs(n.vy) > maxV) n.vy = Math.sign(n.vy) * maxV;
+                n.fx += n.vx; n.fy += n.vy;
+            }
+        }
+        // Clear velocities after simulation
+        for (let n of nodes) { n.vx = 0; n.vy = 0; }
+
+        // Build SVG
+        mapPanX = 0; mapPanY = 0; mapScale = 1;
+        var svgId = 'kmSvg' + Date.now();
+        let svg = '<svg id="' + svgId + '" viewBox="0 0 ' + W + ' ' + H + '" width="100%" height="' + H + '" style="display:block;margin:0 auto;max-width:100%;cursor:grab;">';
+
+        // Defs for arrowheads
+        svg += '<g class="km-transform" transform="translate(' + mapPanX + ',' + mapPanY + ') scale(' + mapScale + ')">\n';
+        svg += '<defs><marker id="arrow" viewBox="0 0 10 10" refX="20" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10" fill="#D0D5DD"/></marker></defs>';
+
+        // Edges
+        for (const e of edges) {
+            const a = nodes.find(n => n.name === e.source);
+            const b = nodes.find(n => n.name === e.target);
+            if (!a || !b) continue;
+            svg += '<line x1="' + a.fx + '" y1="' + a.fy + '" x2="' + b.fx + '" y2="' + b.fy + '" stroke="#D0D5DD" stroke-width="1.5" marker-end="url(#arrow)"/>';
+        }
+
+        // Nodes (draw edges first so nodes on top)
+        for (const n of nodes) {
             const color = statusColors[n.status] || '#B2BEC3';
-            const statusLabels = { '触及': '🔍 触及', '探索中': '🟡 探索中', '可解释': '🟢 可解释', '可教': '🔵 可教' };
-            const connections = (n.connections || []).filter(c => nodes.find(o => o.name === c));
-            const connStr = connections.length > 0 ? connections.join(', ') : '';
-            return `<div class="km-node" style="background:${color}15;border-left:3px solid ${color};padding:10px 12px;border-radius:8px;margin-bottom:8px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;">
-                    <span style="font-weight:600;font-size:14px;color:var(--text);">${n.name}</span>
-                    <span style="font-size:11px;color:${color};font-weight:600;">${statusLabels[n.status] || '🔍 触及'}</span>
-                </div>
-                ${connStr ? `<div style="font-size:11px;color:var(--text-light);margin-top:4px;">关联：${connStr}</div>` : ''}
-            </div>`;
-        }).join('');
+            const connCount = (n.connections || []).filter(c => nodes.find(o => o.name === c)).length;
+            const baseSize = n.status === '可教' ? 7 : n.status === '可解释' ? 6.5 : 5.5;
+            const size = Math.min(baseSize + connCount * 1.5, 14);
+            const isGold = n.status === '可教';
+            svg += '<g class="km-node" data-name="' + n.name.replace(/"/g, '&quot;') + '" style="cursor:pointer;" onclick="showNodeDetail(this.dataset.name)">';
+            if (isGold) {
+                // Five-pointed star centered at (fx, fy) with outer = size+3
+                var cx = n.fx, cy = n.fy, sr = size + 3, points = [];
+                for (var si = 0; si < 5; si++) {
+                    var outerAngle = Math.PI/2 * -1 + (2 * Math.PI * si) / 5;
+                    points.push(cx + sr * Math.cos(outerAngle) + ',' + (cy + sr * Math.sin(outerAngle)));
+                    var innerAngle = Math.PI/2 * -1 + (2 * Math.PI * si + Math.PI) / 5;
+                    points.push(cx + sr * 0.4 * Math.cos(innerAngle) + ',' + (cy + sr * 0.4 * Math.sin(innerAngle)));
+                }
+                svg += '<polygon points="' + points.join(' ') + '" fill="' + color + '" stroke="#fff" stroke-width="1.5"/>';
+            } else {
+                svg += '<circle cx="' + n.fx + '" cy="' + n.fy + '" r="' + size + '" fill="' + color + '" stroke="#fff" stroke-width="1.5"/>';
+            }
+            var textOffset = isGold ? size + 8 : size + 6;
+            svg += '<text x="' + (n.fx + textOffset) + '" y="' + (n.fy + 4) + '" fill="#444" font-size="12" style="pointer-events:none;">' + n.name + '</text>';
+            svg += '</g>';
+        }
+        svg += '</g></svg>';
 
-        const convCount = STATE.conversationHistory.length > 0 ? Math.ceil(STATE.conversationHistory.length / 2) : 0;
+        // Stats bar
+        const counts = {'触及':0,'探索中':0,'可解释':0,'可教':0};
+        for (const n of nodes) counts[n.status] = (counts[n.status]||0)+1;
+        
+        const statsHtml = '<div style="display:flex;gap:6px;flex-wrap:wrap;padding:8px 0 0;font-size:11px;">' +
+            '<span style="padding:2px 8px;border-radius:6px;background:#B2BEC315;color:#B2BEC3;">🔍触及 '+(counts['触及']||0)+'</span>' +
+            '<span style="padding:2px 8px;border-radius:6px;background:rgba(74,144,217,0.1);color:#4A90D9;">🔵探索中 '+(counts['探索中']||0)+'</span>' +
+            '<span style="padding:2px 8px;border-radius:6px;background:rgba(39,174,96,0.1);color:#27AE60;">🟢可解释 '+(counts['可解释']||0)+'</span>' +
+            '<span style="padding:2px 8px;border-radius:6px;background:rgba(255,215,0,0.15);color:#D4A800;">⭐会教 '+(counts['可教']||0)+'</span>' +
+            '<span style="margin-left:auto;color:var(--text-light);">' + nodes.length + ' 节点</span></div>';
 
-        container.innerHTML = `
-            <div style="margin-bottom:16px;">
-                <div style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;font-weight:600;">${subj.icon} ${subj.name} · 知识网络（${nodes.length} 个节点）</div>
-                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
-                    <span style="font-size:11px;padding:3px 8px;border-radius:6px;background:#B2BEC315;color:#B2BEC3;">🔍 触及 ${statusCounts['触及']||0}</span>
-                    <span style="font-size:11px;padding:3px 8px;border-radius:6px;background:rgba(224,125,48,0.1);color:#E07D30;">🟡 探索中 ${statusCounts['探索中']||0}</span>
-                    <span style="font-size:11px;padding:3px 8px;border-radius:6px;background:rgba(39,174,96,0.1);color:#27AE60;">🟢 可解释 ${statusCounts['可解释']||0}</span>
-                    <span style="font-size:11px;padding:3px 8px;border-radius:6px;background:rgba(74,144,217,0.1);color:#4A90D9;">🔵 可教 ${statusCounts['可教']||0}</span>
-                </div>
-            </div>
-            <div style="margin-bottom:12px;">${nodeCards}</div>
-            <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);font-size:13px;color:var(--text-secondary);">
-                <div style="display:flex;justify-content:space-between;padding:4px 0;">
-                    <span>💬 本对话已交流</span>
-                    <span style="font-weight:700;color:var(--text);">${convCount} 轮</span>
-                </div>
-            </div>
-        `;
+        // Detail panel
+        const detailHtml = '<div id="kmDetail" class="km-detail" style="display:none;"></div>';
+
+        container.innerHTML = statsHtml + svg + detailHtml;
+
+        // Attach pan/zoom handlers (fresh each render — AFTER DOM insertion)
+        var mapSvg = document.getElementById(svgId);
+        if (mapSvg) {
+            if (window._kmCleanup) window._kmCleanup();
+            var onStart = function(e) {
+                if (e.target.closest('.km-node') || e.target.closest('.km-detail')) return;
+                mapDragging = true;
+                mapDragStartX = e.clientX;
+                mapDragStartY = e.clientY;
+                mapPanStartX = mapPanX;
+                mapPanStartY = mapPanY;
+                mapSvg.style.cursor = 'grabbing';
+            };
+            var onMove = function(e) {
+                if (!mapDragging) return;
+                var dx = e.clientX - mapDragStartX;
+                var dy = e.clientY - mapDragStartY;
+                mapPanX = mapPanStartX + dx;
+                mapPanY = mapPanStartY + dy;
+                var grp = mapSvg.querySelector('.km-transform');
+                if (grp) grp.setAttribute('transform', 'translate(' + mapPanX + ',' + mapPanY + ') scale(' + mapScale + ')');
+            };
+            var onEnd = function() {
+                if (mapDragging) {
+                    mapDragging = false;
+                    mapSvg.style.cursor = 'grab';
+                }
+            };
+            var onWheel = function(e) {
+                e.preventDefault();
+                var rect = mapSvg.getBoundingClientRect();
+                var mx = e.clientX - rect.left;
+                var my = e.clientY - rect.top;
+                var factor = e.deltaY > 0 ? 0.9 : 1.1;
+                var ns = Math.max(0.2, Math.min(5, mapScale * factor));
+                mapPanX = mx - (mx - mapPanX) * (ns / mapScale);
+                mapPanY = my - (my - mapPanY) * (ns / mapScale);
+                mapScale = ns;
+                var grp = mapSvg.querySelector('.km-transform');
+                if (grp) grp.setAttribute('transform', 'translate(' + mapPanX + ',' + mapPanY + ') scale(' + mapScale + ')');
+            };
+            mapSvg.addEventListener('mousedown', onStart);
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onEnd);
+            mapSvg.addEventListener('wheel', onWheel, { passive: false });
+            window._kmCleanup = function() {
+                mapSvg.removeEventListener('mousedown', onStart);
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onEnd);
+                mapSvg.removeEventListener('wheel', onWheel);
+            };
+        }
+    }
+
+    function openMapOverlay() {
+        document.getElementById('mapOverlay').classList.add('open');
+        renderProgress();
+    }
+    function closeMapOverlay() {
+        document.getElementById('mapOverlay').classList.remove('open');
+        closeNodeDetail();
+    }
+
+    function showNodeDetail(name) {
+        const subj = STATE.currentSubject;
+        const nodes = STATE.knowledgeMap.filter(n => n.subject === subj);
+        const node = nodes.find(n => n.name === name);
+        if (!node) return;
+
+        // Find related discoveries
+        const discoveries = STATE.discoveries.filter(d =>
+            d.subject === subj && (d.content.includes(name) || name.includes(d.content.slice(0,4)))
+        );
+
+        // Find connected nodes
+        const conns = (node.connections || []).filter(c => nodes.find(n => n.name === c));
+
+        // Find related conversations from history
+        const relatedHistory = STATE.historyList.filter(h => h.subject === subj && h.title && h.title.includes(name));
+
+        // Count conversation rounds on this topic
+        let convCount = 0;
+        for (const h of STATE.historyList) {
+            if (h.subject === subj && (h.title || '').includes(name)) {
+                convCount += h.count || 0;
+            }
+        }
+
+        const statusColors = {'触及':'#B2BEC3','探索中':'#4A90D9','可解释':'#27AE60','可教':'#FFD700'};
+        const statusLabels = {'触及':'🔍 触及','探索中':'🔵 探索中','可解释':'🟢 可解释','可教':'⭐ 会教'};
+
+        let html = '<div class="km-detail-header"><span style="font-weight:700;font-size:16px;color:var(--text);">' + name + '</span>';
+        html += '<button onclick="closeNodeDetail()" style="border:none;background:none;cursor:pointer;font-size:18px;color:var(--text-light);">✕</button></div>';
+        html += '<div style="font-size:13px;color:' + (statusColors[node.status]||'#999') + ';margin-bottom:12px;">' + (statusLabels[node.status]||'🔍 触及') + (node.anchor ? ' · 锚点' : '') + '</div>';
+
+        if (conns.length > 0) {
+            html += '<div style="margin-bottom:10px;"><div style="font-size:12px;color:var(--text-light);margin-bottom:4px;">🔗 关联节点</div><div style="display:flex;flex-wrap:wrap;gap:4px;">';
+            for (const c of conns) {
+                html += '<button data-km="' + c + '" onclick="showNodeDetail(this.getAttribute(\'data-km\'))" style="padding:3px 8px;border:1px solid var(--border);border-radius:6px;background:var(--card);cursor:pointer;font-size:12px;color:var(--text);">' + c + '</button>';
+            }
+            html += '</div></div>';
+        }
+
+        if (discoveries.length > 0) {
+            html += '<div style="margin-bottom:10px;"><div style="font-size:12px;color:var(--text-light);margin-bottom:4px;">💡 关键发现（' + discoveries.length + '）</div>';
+            for (const d of discoveries.slice(0, 5)) {
+                html += '<div style="font-size:12px;color:var(--text-secondary);padding:4px 0;border-bottom:1px solid var(--border);">' + d.date + ' · ' + d.content.slice(0, 40) + (d.content.length > 40 ? '…' : '') + '</div>';
+            }
+            html += '</div>';
+        }
+
+        if (convCount > 0) {
+            html += '<div style="font-size:12px;color:var(--text-light);">💬 累计 ' + convCount + ' 轮对话</div>';
+        }
+
+        html += '<button data-explore="' + name + '" onclick="closeNodeDetail();startExploringFromNode(this.getAttribute(\'data-explore\'))" style="margin-top:12px;width:100%;padding:8px;border:none;border-radius:8px;background:var(--primary);color:#fff;font-size:13px;font-weight:600;cursor:pointer;">从这里开始探索 🚀</button>';
+
+        const detailPanel = document.getElementById('kmDetail');
+        detailPanel.innerHTML = html;
+        detailPanel.style.display = 'block';
+    }
+
+    function closeNodeDetail() {
+        const panel = document.getElementById('kmDetail');
+        if (panel) panel.style.display = 'none';
+    }
+
+    function startExploringFromNode(name) {
+        const input = document.getElementById('chatInput');
+        input.value = '帮我搞懂 ' + name;
+        autoResize(input);
+        sendMessage();
     }
 
     function updateDrawerCounts() {
@@ -1927,7 +2477,11 @@ C：挑战一个超纲问题，看看你能走多远
     // ======================================================================
     document.addEventListener('keydown', (e) => {
         if ((e.ctrlKey || e.metaKey) && e.key === 'b') { e.preventDefault(); toggleDrawer(); }
-        if (e.key === 'Escape') { if (STATE.drawerOpen) closeDrawer(); }
+        if (e.key === 'Escape') {
+            const mo = document.getElementById('mapOverlay');
+            if (mo && mo.classList.contains('open')) closeMapOverlay();
+            if (STATE.drawerOpen) closeDrawer();
+        }
     });
 
     // ======================================================================
@@ -2042,6 +2596,7 @@ C：挑战一个超纲问题，看看你能走多远
         document.getElementById('selGrade').value = STATE.profile.grade;
         document.getElementById('selTextbook').value = STATE.profile.textbook;
         updateWelcomeName();
+        reanalyzeKnowledgeMap();
         restoreConversation();
     } else {
         // 首次使用 → 显示引导，不恢复旧对话
